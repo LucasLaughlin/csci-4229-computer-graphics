@@ -1,1 +1,1 @@
-Examples provided by proffesor Willem Schreduer
+Examples provided by proffesor Willem A. Schreuder
