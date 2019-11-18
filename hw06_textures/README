@@ -1,0 +1,28 @@
+Hw4
+
+Lucas Laughlin
+Portions of code were taken from proffesor Willem Schreuder's examples for CSCI 4229 
+
+Hw took around 6 hours
+
+Key bindings
+  left arrow    decrease azimuth
+  right arrow   increase azimuth
+  up arrow      increase angle of elevation
+  down arrow    decrease angle of elevation
+  Page Up       increase dimensions of world
+  Page Down     decrease dimensions of world  
+
+  v/v        cycle through viewing modes (orthogonal, projection)
+  r/R        decreas FOV
+  f/F        increase FOV       
+  a/A        decrease/increase ambient light
+  s/S        decrease/increase speculat light
+  d/D        decrease/increase diffused light
+  e/E        decrease/increase emmision light        
+  t/T        Toggle Smooth/flat shading
+  m/m        Toggle light movement
+  l/L        Toggle light source
+  x/X        Toggle axes
+  0          Reset view angle
+  ESC        Exit
