@@ -1,0 +1,35 @@
+ex21: More Lighting
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Demonstrates spotlights, lighting near large objects, two sided lighting
+and similar advanced lighting techniques.
+
+Key bindings
+  l/L        Toggle lighting on/off
+  t/T        Toggle textures on/off
+  p/P        Toggle projection between orthogonal/perspective
+  b/B        Toggle display of quads
+  +/-        Increase/decrease number of quads
+  F1         Toggle smooth/flat shading
+  F2         Toggle local viewer mode on/off
+  F3         Toggle two sided mode on/off
+  'i'        Toggle light at infinity
+  a/A        Decrease/increase ambient light
+  d/D        Decrease/increase diffuse light
+  s/S        Decrease/increase specular light
+  e/E        Decrease/increase emitted light
+  n/N        Decrease/increase shininess
+  []         Decrease/increase light elevation
+  {}         Decrease/increase spot cutoff
+  1/!        Decrease/increase constant attenuation
+  2/@        Decrease/increase linear attenuation
+  3/#        Decrease/increase quadratic attenuation
+  x/X        Decrease/increase light X-position
+  y/Y        Decrease/increase light Y-position
+  z/Z        Decrease/increase light Z-position
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

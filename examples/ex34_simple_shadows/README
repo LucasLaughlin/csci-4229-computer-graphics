@@ -1,0 +1,16 @@
+ex34: Lighting with Simple Shadows
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Demonstrate shadows on a flat surface.
+
+Key bindings
+  p/P        Toggle between orthogonal/perspective projection
+  s/S        Start/stop light movement
+  +/-        Lower/rise light
+  x          Toggle axes
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

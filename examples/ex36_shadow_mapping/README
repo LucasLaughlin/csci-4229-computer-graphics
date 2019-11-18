@@ -1,0 +1,22 @@
+ex36: Shadow Map with Shaders
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+with Frame Buffer Depth Texture by Jay Kominek
+Demonstate shadows using the shadow map algorithm using a shader.
+
+Key bindings
+  m/M        Show/hide shadow map
+  o/O        Cycle through objects
+  +/-        Change light elevation
+  []         Change light position
+  s/S        Start/stop light movement
+  l/L        Toggle teapot lid stretch
+  <>         Decrease/increase number of slices in objects
+  b/B        Toggle room box
+  a          Toggle axes
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

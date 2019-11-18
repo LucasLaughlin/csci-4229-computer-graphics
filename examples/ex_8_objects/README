@@ -1,0 +1,38 @@
+Hw4
+
+Lucas Laughlin
+
+Hw took around 6 hours
+
+Key bindings
+  Navivation
+    First Person Mode:
+      mouse         change view vector direction
+      left arrow    strafe left
+      right arrow   strafe right
+      up arrow      move in direction you are looking
+      down arrow    move in the oposite direction you are looking  
+      Page Up       increase y coordinate of camera
+      Page Down     decrease y coordinate of camera
+
+    Other View modes:
+      left arrow    decrease azimuth
+      right arrow   increase azimuth
+      up arrow      increase angle of elevation
+      down arrow    decrease angle of elevation
+      Page Up       increase dimensions of world
+      Page Down     decrease dimensions of world  
+
+  v/v        cycle through viewing modes (orthogonal, projection, first person)
+  r/R        decreas FOV
+  f/F        increase FOV
+  w/W        increase amplitude
+  s/S        decrease amplitude
+  e/E        increase period
+  d/D        decrease period
+  q/Q        switch wave types
+  m/M        Cycle through different sets of objects
+  a/A        Toggle axes
+  arrows     Change view angle
+  0          Reset view angle
+  ESC        Exit
