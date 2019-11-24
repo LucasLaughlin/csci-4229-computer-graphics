@@ -1,0 +1,10 @@
+ex28: Anti-aliased lines
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Draw jagged and anti-aliased lines
+
+Key bindings
+  r/R  Change angle of lines
+  ESC  Exit
