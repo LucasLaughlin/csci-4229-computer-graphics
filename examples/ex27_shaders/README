@@ -1,0 +1,31 @@
+ex27: Shaders
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Demonstrate shaders:
+Simple shaders
+Vertex lighting
+Procedural textures
+Toon shader
+Pixel lighting
+Texture lookup
+Pixel lighting with texture
+If OpenGL 4 is supported:
+Pixel lighting OpenGL 4 style but using
+a HORRIBLE kludge to set attributes
+
+Key bindings
+  m/M        Cycle through shaders
+  x/X        Increase/decrease mandelbrot X-value
+  y/Y        Increase/decrease mandelbrot Y-value
+  z/Z        Zoom in/out of mandelbrot
+  o/O        Cycle through objects
+  p/P        Toggle between orthogonal & perspective projections
+  s/S        Start/stop light movement
+  -/+        Decrease/increase light elevation
+  a          Toggle axes
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

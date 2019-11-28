@@ -24,8 +24,8 @@ int ph = 30; //  Elevation of view angle
 
 /*    Projection model values    */
 double asp = 1;   //  Aspect ratio
-double dim = 3.0; //  Size of world
-int fov = 55;     //  Field of view
+double dim = 4.0; //  Size of world
+int fov = 65;     //  Field of view
 
 /*    Light model values     */
 int light = 1;     // Light Switch
@@ -48,6 +48,14 @@ double rep = 1;
 int texMode = 0;
 int ntex = 0;
 unsigned int texture[3];
+
+/*    Shader variables     */
+int shader_mode = 0;
+int shader[] = {0, 0, 0, 0, 0, 0};
+int num_shaders = sizeof(shader) / sizeof(int);
+
+/*    Test variables     */
+int init = 1;
 
 /*    Draw vertex in polar coordinates      */
 static void Vertex(double th, double ph)
@@ -94,19 +102,13 @@ static void sphere(double x, double y, double z, double r)
    glPopMatrix();
 }
 
-static void Normal(double xn, double yn, double zn, double xp, double yp, double zp)
+static void FillBuffer(int index, float bufName[], float x, float y, float z)
 {
-   glNormal3f(xn, yn, zn);
-   if (normals)
-   {
-      glColor3f(1, 1, 1);
-      int mag = sqrt(pow(xn, 2) + pow(yn, 2) + pow(zn, 2));
-      
-      glVertex3f(xp + xn / mag, yp + yn / mag, zp + zn / mag);
-      glVertex3f(xp, yp, zp);
-      glVertex3f(xp, yp, zp);
-      glVertex3f(xp, yp, zp);
-   }
+   bufName[index] = x;
+   bufName[index + 1] = y;
+   if (z != NAN)
+      bufName[index + 2] = z;
+   return;
 }
 
 /* Draw cowboy hat 
@@ -141,76 +143,27 @@ static void Hat(double x, double y, double z, double r)
    float r_step = 0.1;  // Hat radius fidelity
    int angle_step = 15; // Hat angle fidelity
 
-   for (float r = 0; r <= 3; r += r_step)
-   {
-      glBegin(GL_QUAD_STRIP);
+   /*    Hat max dimensions    */
+   int r_max = 3;
+   int angle_max = 360;
 
-      int textFix = 0;
-      for (int angle = 0; angle <= 360; angle += angle_step)
-      {
-         glColor3f(0.54, 0.27, 0.075);
-         float xv = ((sqrt(2) * sqrt(0.5)) + r) * Cos(angle);
-         float zv = r * Sin(angle);
-         float yv = a * pow(sqrt(pow(xv, 2) / 2 + pow(zv, 2)), 4) + c * pow(sqrt(pow(xv, 2) / 2 + pow(zv, 2)), 2) + e;
-         float yv_brim = 0.1 * pow(zv, 2) - 0.1;
-         float iv, jv, kv;
-         if (yv >= yv_brim - 1.5)
-         {
-            iv = -0.5 * pow(xv, 3) - xv * pow(zv, 2) + 0.9 * xv;
-            jv = -1;
-            kv = -2 * pow(zv, 3) - zv * pow(xv, 2) + 1.8 * zv;
-         }
-         else
-         {
-            iv = 0;
-            jv = -1;
-            kv = 0.2 * zv;
-         }
-         glColor3f(0.54, 0.27, 0.075 + yv / 12);
-         glColor3f(0.54, 0.27, 0.075);
-         glTexCoord2f(0.0, textFix ? 0.0 : rep);
-         glVertex3f(xv, fmax(yv, yv_brim), zv);
-         Normal(iv, jv, kv, xv, yv, zv);
+   /*    Set up Buffer arays for Shaders     */
+   int bufferLen = ((r_max / r_step) + 1) * ((angle_max / angle_step) + 1) * 4; //(number of r steps + 1 for 0 index) * (number of angle steps + 1 for 0 index) * 4 points drawn per point on hat * 2 hats
+   float position[bufferLen * 3];
+   float normals[bufferLen * 3];
+   float colors[bufferLen * 3];
+   float textCoords[bufferLen * 2];
+   int bufIndexCount = 0;
 
-         float xv_step = ((sqrt(2) * sqrt(0.5)) + (r + r_step)) * Cos(angle);
-         float zv_step = (r + r_step) * Sin(angle);
-         float yv_step = a * pow(sqrt(pow(xv_step, 2) / 2 + pow(zv_step, 2)), 4) + c * pow(sqrt(pow(xv_step, 2) / 2 + pow(zv_step, 2)), 2) + e;
-         float yv_step_brim = 0.1 * pow(zv_step, 2) - 0.1;
-
-         if (yv_step >= yv_step_brim - 1.5)
-         {
-            iv = -0.5 * pow(xv_step, 3) - xv_step * pow(zv_step, 2) + 0.9 * xv_step;
-            jv = -1;
-            kv = -2 * pow(zv_step, 3) - zv_step * pow(xv_step, 2) + 1.8 * zv_step;
-         }
-         else
-         {
-            iv = 0;
-            jv = -1;
-            kv = 0.2 * zv_step;
-         }
-         glColor3f(0.54, 0.27, 0.075 + yv_step / 12);
-         
-         glTexCoord2f(rep, textFix ? 0.0 : rep);
-         glVertex3f(xv_step, fmax(yv_step, yv_step_brim), zv_step);
-         Normal(iv, jv, kv, xv, yv, zv);
-         textFix = !textFix;
-         /* if ((angle/angle_step)%2=0){
-            Normal(iv, jv, kv, xv, yv, zv);
-         } */
-      }
-      glEnd();
-   }
    float closure = -0.1;
-   for (float r = 0; r <= 3; r += r_step)
+   for (float r = 0; r <= r_max; r += r_step)
    {
 
       glBegin(GL_QUAD_STRIP);
 
       int textFix = 0;
-      for (int angle = 0; angle <= 360; angle += angle_step)
+      for (int angle = 0; angle <= angle_max; angle += angle_step)
       {
-         glColor3f(0.54, 0.27, 0.075);
          closure = -0.1;
          float xv = ((sqrt(2) * sqrt(0.5)) + r) * Cos(angle);
          float zv = r * Sin(angle);
@@ -229,11 +182,22 @@ static void Hat(double x, double y, double z, double r)
             jv = -1;
             kv = 0.2 * zv;
          }
-         glColor3f(0.54, 0.27, 0.075 + yv / 12);
-         
-         glTexCoord2f(0.0, textFix ? 0.0 : rep);
-         glVertex3f(xv, fmax(yv, yv_brim), zv);
-         Normal(iv, jv, kv, xv, yv, zv);
+
+         if (shader_mode <= 3)
+         {
+            glNormal3f(iv, jv, kv);
+            glColor3f(0.54, 0.27, 0.075 + yv / 12);
+            glTexCoord2f(0.0, textFix ? 0.0 : rep);
+            glVertex3f(xv, fmax(yv, yv_brim), zv);
+         }
+         else
+         {
+            FillBuffer(bufIndexCount, position, xv, fmax(yv, yv_brim), zv);
+            FillBuffer(bufIndexCount, normals, iv, jv, kv);
+            FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv / 12);
+            FillBuffer(bufIndexCount, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
+         }
+         bufIndexCount += 3;
          if (r > 2.9)
          {
             closure = 0.0;
@@ -255,15 +219,61 @@ static void Hat(double x, double y, double z, double r)
             jv = -1;
             kv = 0.2 * zv_step;
          }
-         glColor3f(0.54, 0.27, 0.075 + yv_step / 12);
-         
-         glTexCoord2f(rep, textFix ? 0.0 : rep);
-         glVertex3f(xv_step, fmax(yv_step, yv_step_brim), zv_step);
+         if (shader_mode <= 3)
+         {
+            glNormal3f(iv, jv, kv);
+            glColor3f(0.54, 0.27, 0.075 + yv_step / 12);
+            glTexCoord2f(rep, textFix ? 0.0 : rep);
+            glVertex3f(xv_step, fmax(yv_step, yv_step_brim), zv_step);
+         }
+         else
+         {
+            FillBuffer(bufIndexCount, position, xv_step, fmax(yv_step, yv_step_brim), zv_step);
+            FillBuffer(bufIndexCount, normals, iv, jv, kv);
+            FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv_step / 12);
+            FillBuffer(bufIndexCount, textCoords, rep, textFix ? 0.0 : rep, NAN);
+         }
+         bufIndexCount += 3;
          textFix = !textFix;
-         Normal(iv, jv, kv, xv, yv, zv);
       }
       glEnd();
    }
+   GLuint position_vbo;
+   glGenBuffers(1, &position_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, position_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
+   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   GLuint normals_vbo;
+   glGenBuffers(1, &normals_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, normals_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   GLuint colors_vbo;
+   glGenBuffers(1, &colors_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, colors_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
+   glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   GLuint tex_vbo;
+   glGenBuffers(1, &tex_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, tex_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(textCoords), textCoords, GL_STATIC_DRAW);
+   glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   glEnableVertexAttribArray(0);
+   glEnableVertexAttribArray(1);
+   glEnableVertexAttribArray(2);
+   glEnableVertexAttribArray(3);
+
+
+   //93006200
+   //9300 - bufIndexCount
+   //6200 - bufferLen
+
+   glDrawArrays(GL_QUAD_STRIP, 0, bufIndexCount / 3 );
+
    glPopMatrix();
    //  Switch off textures so it doesn't apply to the rest
    glDisable(GL_TEXTURE_2D);
@@ -302,7 +312,7 @@ static void Info()
    glWindowPos2i(5, 50);
    Print("Ambient=%d  Diffuse=%d Specular=%d Emission=%d", ambient, diffuse, specular, emission, shiny);
    glWindowPos2i(5, 25);
-   Print("Angle=%d,%d | Dim=%.1f | FOV=%d", th, ph, dim, fov);
+   Print("Angle=%d,%d | Dim=%.1f | FOV=%d | shader:%d", th, ph, dim, fov, shader_mode);
 }
 
 /*    OpenGL (GLUT) calls this routine to display the scene    */
@@ -361,9 +371,33 @@ void display()
    else
       glDisable(GL_LIGHTING);
 
+   glDisable(GL_CULL_FACE);
+   glUseProgram(shader[shader_mode]);
+
+   float ViewMatrix[16], ModelViewMatrix[16], ProjectionMatrix[16];
+   glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
+   glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
+   glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
+   /* printf("%f", ProjectionMatrix[10]);
+   printf("%f", ModelViewMatrix[10]); */
+
+   int id;
+   //  Set matrixes
+   id = glGetUniformLocation(shader[shader_mode], "ModelViewMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ModelViewMatrix);
+   id = glGetUniformLocation(shader[shader_mode], "ViewMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ViewMatrix);
+   id = glGetUniformLocation(shader[shader_mode], "ProjectionMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
+
    // Draw Hat
-   Hat(0, 0, 0, 0.5);
+   Hat(0, 0, 0, 1);
+
    // Draw axes
+   glUseProgram(shader[0]);
    Axes();
    // Write info
    Info();
@@ -371,6 +405,112 @@ void display()
    glFlush();
    //  Make the rendered scene visible
    glutSwapBuffers();
+}
+
+/*
+ *  Read text file
+ */
+char *ReadText(char *file)
+{
+   int n;
+   char *buffer;
+   //  Open file
+   FILE *f = fopen(file, "rt");
+   if (!f)
+      Fatal("Cannot open text file %s\n", file);
+   //  Seek to end to determine size, then rewind
+   fseek(f, 0, SEEK_END);
+   n = ftell(f);
+   rewind(f);
+   //  Allocate memory for the whole file
+   buffer = (char *)malloc(n + 1);
+   if (!buffer)
+      Fatal("Cannot allocate %d bytes for text file %s\n", n + 1, file);
+   //  Snarf the file
+   if (fread(buffer, n, 1, f) != 1)
+      Fatal("Cannot read %d bytes for text file %s\n", n, file);
+   buffer[n] = 0;
+   //  Close and return
+   fclose(f);
+   return buffer;
+}
+
+/*    Print Shader Log     */
+void PrintShaderLog(int obj, char *file)
+{
+   int len = 0;
+   glGetShaderiv(obj, GL_INFO_LOG_LENGTH, &len);
+   if (len > 1)
+   {
+      int n = 0;
+      char *buffer = (char *)malloc(len);
+      if (!buffer)
+         Fatal("Cannot allocate %d bytes of text for shader log\n", len);
+      glGetShaderInfoLog(obj, len, &n, buffer);
+      fprintf(stderr, "%s:\n%s\n", file, buffer);
+      free(buffer);
+   }
+   glGetShaderiv(obj, GL_COMPILE_STATUS, &len);
+   if (!len)
+      Fatal("Error compiling %s\n", file);
+}
+
+/*    Print Program Log    */
+void PrintProgramLog(int obj)
+{
+   int len = 0;
+   glGetProgramiv(obj, GL_INFO_LOG_LENGTH, &len);
+   if (len > 1)
+   {
+      int n = 0;
+      char *buffer = (char *)malloc(len);
+      if (!buffer)
+         Fatal("Cannot allocate %d bytes of text for program log\n", len);
+      glGetProgramInfoLog(obj, len, &n, buffer);
+      fprintf(stderr, "%s\n", buffer);
+   }
+   glGetProgramiv(obj, GL_LINK_STATUS, &len);
+   if (!len)
+      Fatal("Error linking program\n");
+}
+
+/*    Create Shader     */
+int CreateShader(GLenum type, char *file)
+{
+   //  Create the shader
+   int shader = glCreateShader(type);
+   //  Load source code from file
+   char *source = ReadText(file);
+   glShaderSource(shader, 1, (const char **)&source, NULL);
+   free(source);
+   //  Compile the shader
+   fprintf(stderr, "Compile %s\n", file);
+   glCompileShader(shader);
+   //  Check for errors
+   PrintShaderLog(shader, file);
+   //  Return name
+   return shader;
+}
+
+/*    Create Shader Program      */
+int CreateShaderProg(char *VertFile, char *FragFile)
+{
+   //  Create program
+   int prog = glCreateProgram();
+   //  Create and compile vertex shader
+   int vert = CreateShader(GL_VERTEX_SHADER, VertFile);
+   //  Attach vertex shader
+   glAttachShader(prog, vert);
+   //  Create and compile fragment shader
+   int frag = CreateShader(GL_FRAGMENT_SHADER, FragFile);
+   //  Attach fragment shader
+   glAttachShader(prog, frag);
+   //  Link program
+   glLinkProgram(prog);
+   //  Check for errors
+   PrintProgramLog(prog);
+   //  Return name
+   return prog;
 }
 
 /*    GLUT calls this routine when an arrow key is pressed     */
@@ -399,15 +539,6 @@ void special(int key, int x, int y)
    //  Keep angles to +/-360 degrees
    th %= 360;
    ph %= 360;
-}
-
-/*    GLUT calls this routine when there is nothing else to do    */
-void idle()
-{
-   t = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
-   zh = fmod(45 * t, 360.0);
-   Project(fov, asp, dim);
-   glutPostRedisplay();
 }
 
 /*    GLUT calls this routine when a key is pressed      */
@@ -460,6 +591,11 @@ void key(unsigned char ch, int x, int y)
       fov--;
    else if (ch == 'F')
       fov++;
+   //  Shader selector
+   else if (ch == '<' || ch == ',')
+      shader_mode = (shader_mode + num_shaders - 1) % num_shaders;
+   else if (ch == '>' || ch == '.')
+      shader_mode = (shader_mode + 1) % num_shaders;
 }
 
 /*    GLUT calls this routine when the window is resized    */
@@ -474,6 +610,15 @@ void reshape(int width, int height)
    glutPostRedisplay();
 }
 
+/*    GLUT calls this routine when there is nothing else to do    */
+void idle()
+{
+   t = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
+   zh = fmod(45 * t, 360.0);
+   Project(fov, asp, dim);
+   glutPostRedisplay();
+}
+
 /*    Start up GLUT and tell it what to do     */
 int main(int argc, char *argv[])
 {
@@ -484,6 +629,12 @@ int main(int argc, char *argv[])
    glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
    //  Create the window
    glutCreateWindow("model viewer");
+
+   // Create vertex array object once window has been generated, before any other openGl call - http://www.opengl-tutorial.org/beginners-tutorials/tutorial-2-the-first-triangle/
+   GLuint vao;
+   glGenVertexArrays(1, &vao);
+   glBindVertexArray(vao);
+
    //  Tell GLUT to call "idle" when there is nothing else to do
    glutIdleFunc(idle);
    //  Tell GLUT to call "display" when the scene should be drawn
@@ -494,7 +645,14 @@ int main(int argc, char *argv[])
    glutSpecialFunc(special);
    //  Tell GLUT to call "key" when a key is pressed
    glutKeyboardFunc(key);
-   /* texture[0] =  */ LoadTexBMP("489.bmp");
+   LoadTexBMP("489.bmp");
+   //  Shaders
+   shader[1] = CreateShaderProg("pixtex.vert", "pixtex.frag");
+   shader[2] = CreateShaderProg("simple.vert", "simple.frag");
+   shader[3] = CreateShaderProg("gl4.vert", "gl4.frag");
+   shader[4] = CreateShaderProg("simple.vert", "simple.frag");
+   shader[5] = CreateShaderProg("gl4.vert", "gl4.frag");
+   //shader[3] = CreateShaderProg("normals.vert","normals.frag", "normals.geo");
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();
