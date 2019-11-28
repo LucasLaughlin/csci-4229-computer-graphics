@@ -14,6 +14,7 @@
  *    refactor Hat function
  */
 #include "CSCIx229.h"
+#include "cglm/cglm.h"
 int normals = 0; // Display normal vectors
 int axes = 1;    // Display axes
 double t = 0;    // Timer
@@ -28,7 +29,6 @@ double dim = 4.0; //  Size of world
 int fov = 65;     //  Field of view
 
 /*    Light model values     */
-int light = 1;     // Light Switch
 int smooth = 1;    // Smooth/Flat shading
 int emission = 0;  // Emission intensity (%)
 int ambient = 30;  // Ambient intensity (%)
@@ -50,7 +50,7 @@ int ntex = 0;
 unsigned int texture[3];
 
 /*    Shader variables     */
-int shader_mode = 0;
+int shader_mode = 2;
 int shader[] = {0, 0, 0, 0, 0, 0};
 int num_shaders = sizeof(shader) / sizeof(int);
 
@@ -183,7 +183,7 @@ static void Hat(double x, double y, double z, double r)
             kv = 0.2 * zv;
          }
 
-         if (shader_mode <= 3)
+         if (shader_mode <= 1)
          {
             glNormal3f(iv, jv, kv);
             glColor3f(0.54, 0.27, 0.075 + yv / 12);
@@ -195,7 +195,7 @@ static void Hat(double x, double y, double z, double r)
             FillBuffer(bufIndexCount, position, xv, fmax(yv, yv_brim), zv);
             FillBuffer(bufIndexCount, normals, iv, jv, kv);
             FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv / 12);
-            FillBuffer(bufIndexCount, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
+            FillBuffer(bufIndexCount/3*2, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
          }
          bufIndexCount += 3;
          if (r > 2.9)
@@ -219,7 +219,7 @@ static void Hat(double x, double y, double z, double r)
             jv = -1;
             kv = 0.2 * zv_step;
          }
-         if (shader_mode <= 3)
+         if (shader_mode <= 1)
          {
             glNormal3f(iv, jv, kv);
             glColor3f(0.54, 0.27, 0.075 + yv_step / 12);
@@ -231,7 +231,7 @@ static void Hat(double x, double y, double z, double r)
             FillBuffer(bufIndexCount, position, xv_step, fmax(yv_step, yv_step_brim), zv_step);
             FillBuffer(bufIndexCount, normals, iv, jv, kv);
             FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv_step / 12);
-            FillBuffer(bufIndexCount, textCoords, rep, textFix ? 0.0 : rep, NAN);
+            FillBuffer(bufIndexCount/3*2, textCoords, rep, textFix ? 0.0 : rep, NAN);
          }
          bufIndexCount += 3;
          textFix = !textFix;
@@ -267,12 +267,11 @@ static void Hat(double x, double y, double z, double r)
    glEnableVertexAttribArray(2);
    glEnableVertexAttribArray(3);
 
-
    //93006200
    //9300 - bufIndexCount
    //6200 - bufferLen
 
-   glDrawArrays(GL_QUAD_STRIP, 0, bufIndexCount / 3 );
+   glDrawArrays(GL_QUAD_STRIP, 0, bufIndexCount / 3);
 
    glPopMatrix();
    //  Switch off textures so it doesn't apply to the rest
@@ -312,7 +311,7 @@ static void Info()
    glWindowPos2i(5, 50);
    Print("Ambient=%d  Diffuse=%d Specular=%d Emission=%d", ambient, diffuse, specular, emission, shiny);
    glWindowPos2i(5, 25);
-   Print("Angle=%d,%d | Dim=%.1f | FOV=%d | shader:%d", th, ph, dim, fov, shader_mode);
+   Print("Angle=%d,%d | Dim=%.1f | FOV=%d | shader:%d | normals:%d", th, ph, dim, fov, shader_mode, normals);
 }
 
 /*    OpenGL (GLUT) calls this routine to display the scene    */
@@ -322,9 +321,9 @@ void display()
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    //  Enable Z-buffering in OpenGL
    glEnable(GL_DEPTH_TEST);
-   glDepthFunc(GL_LESS);
    //  Undo previous transformations
    glLoadIdentity();
+
    //  Perspective - set eye position
    double Ex = -2 * dim * Sin(th) * Cos(ph);
    double Ey = +2 * dim * Sin(ph);
@@ -334,52 +333,55 @@ void display()
    //  Flat or smooth shading
    glShadeModel(smooth ? GL_SMOOTH : GL_FLAT);
 
-   //  Light switch
-   if (light)
-   {
-      //  Translate intensity to color vectors
-      float Ambient[] = {0.01 * ambient, 0.01 * ambient, 0.01 * ambient, 1.0};
-      float Diffuse[] = {0.01 * diffuse, 0.01 * diffuse, 0.01 * diffuse, 1.0};
-      float Specular[] = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
-      //  Light position
-      glColor3f(1, 1, 1);
-      float Position[] = {distance * Cos(zh), ylight, distance * Sin(zh), 1.0};
-      if (move == 0)
-      {
-         Position[2] = ylight;
-         Position[1] = distance * Sin(zh);
-      }
-      sphere(Position[0], Position[1], Position[2], 0.1);
+   //  Translate intensity to color vectors
+   float Emission[]  = {0.1 * emission,0.1 * emission,0.1 * emission,1.0};
+   float Ambient[] = {0.01 * ambient, 0.01 * ambient, 0.01 * ambient, 1.0};
+   float Diffuse[] = {0.01 * diffuse, 0.01 * diffuse, 0.01 * diffuse, 1.0};
+   float Specular[] = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
+   float Shinyness[] = {16};
 
-      //  OpenGL should normalize normal vectors
-      glEnable(GL_NORMALIZE);
-      //  Enable lighting
-      glEnable(GL_LIGHTING);
-      //  Location of viewer for specular calculations
-      glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
-      //  glColor sets ambient and diffuse color materials
-      glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-      glEnable(GL_COLOR_MATERIAL);
-      //  Enable light 0
-      glEnable(GL_LIGHT0);
-      //  Set ambient, diffuse, specular components and position of light 0
-      glLightfv(GL_LIGHT0, GL_AMBIENT, Ambient);
-      glLightfv(GL_LIGHT0, GL_DIFFUSE, Diffuse);
-      glLightfv(GL_LIGHT0, GL_SPECULAR, Specular);
-      glLightfv(GL_LIGHT0, GL_POSITION, Position);
-   }
-   else
-      glDisable(GL_LIGHTING);
+   //  Light position
+   float Position[] = {distance * Cos(zh), ylight, distance * Sin(zh), 1.0};
+   
+   
+   glColor3f(1, 1, 1);
+   sphere(Position[0], Position[1], Position[2], 0.1);
 
-   glDisable(GL_CULL_FACE);
+   //  OpenGL should normalize normal vectors
+   glEnable(GL_NORMALIZE);
+   //  Enable lighting
+   glEnable(GL_LIGHTING);
+   //  Location of viewer for specular calculations
+   glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
+   //  glColor sets ambient and diffuse color materials
+   glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+   glEnable(GL_COLOR_MATERIAL);
+   //  Enable light 0
+   glEnable(GL_LIGHT0);
+   //  Set ambient, diffuse, specular components and position of light 0
+   glLightfv(GL_LIGHT0, GL_AMBIENT, Ambient);
+   glLightfv(GL_LIGHT0, GL_DIFFUSE, Diffuse);
+   glLightfv(GL_LIGHT0, GL_SPECULAR, Specular);
+   glLightfv(GL_LIGHT0, GL_POSITION, Position);
+
    glUseProgram(shader[shader_mode]);
-
+   
    float ViewMatrix[16], ModelViewMatrix[16], ProjectionMatrix[16];
    glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
    glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
    glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
-   /* printf("%f", ProjectionMatrix[10]);
-   printf("%f", ModelViewMatrix[10]); */
+   /* printf("%f", ProjectionMatrix[10]) */
+
+   mat3 inverse, NormalMatrix;
+   
+   mat3 submatrix = {
+      {ModelViewMatrix[0], ModelViewMatrix[1], ModelViewMatrix[2]},
+      {ModelViewMatrix[4], ModelViewMatrix[5], ModelViewMatrix[6]},
+      {ModelViewMatrix[8], ModelViewMatrix[9], ModelViewMatrix[10]}
+   };
+
+   glm_mat3_inv(submatrix, inverse);
+   glm_mat3_transpose_to(inverse, NormalMatrix);
 
    int id;
    //  Set matrixes
@@ -392,10 +394,39 @@ void display()
    id = glGetUniformLocation(shader[shader_mode], "ProjectionMatrix");
    if (id >= 0)
       glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
+   id = glGetUniformLocation(shader[shader_mode], "NormalMatrix");
+   if (id >= 0)
+      glUniformMatrix3fv(id, 1, 0, (float *)NormalMatrix);
+   //  Set lighting parameters
+   id = glGetUniformLocation(shader[shader_mode], "Position");
+   if (id >= 0)
+      glUniform4fv(id, 1, Position);
+   id = glGetUniformLocation(shader[shader_mode], "Ambient");
+   if (id >= 0)
+      glUniform4fv(id, 1, Ambient);
+   id = glGetUniformLocation(shader[shader_mode], "Diffuse");
+   if (id >= 0)
+      glUniform4fv(id, 1, Diffuse);
+   id = glGetUniformLocation(shader[shader_mode], "Specular");
+   if (id >= 0)
+      glUniform4fv(id, 1, Specular);
+   //  Set material properties
+   id = glGetUniformLocation(shader[shader_mode], "Ks");
+   if (id >= 0)
+      glUniform4fv(id, 1, Specular);
+   id = glGetUniformLocation(shader[shader_mode], "Ke");
+   if (id >= 0)
+      glUniform4fv(id, 1, Emission);
+   id = glGetUniformLocation(shader[shader_mode], "Shinyness");
+   if (id >= 0)
+      glUniform1f(id, Shinyness[0]);
 
    // Draw Hat
    Hat(0, 0, 0, 1);
-
+   if(normals){
+      glUseProgram(shader[3]);
+      Hat(0,0,0,1);
+   }
    // Draw axes
    glUseProgram(shader[0]);
    Axes();
@@ -493,7 +524,7 @@ int CreateShader(GLenum type, char *file)
 }
 
 /*    Create Shader Program      */
-int CreateShaderProg(char *VertFile, char *FragFile)
+int CreateShaderProg(char *VertFile, char *FragFile, char *GeoFile)
 {
    //  Create program
    int prog = glCreateProgram();
@@ -501,6 +532,11 @@ int CreateShaderProg(char *VertFile, char *FragFile)
    int vert = CreateShader(GL_VERTEX_SHADER, VertFile);
    //  Attach vertex shader
    glAttachShader(prog, vert);
+   if (GeoFile != NULL){
+      int geo = CreateShader(GL_GEOMETRY_SHADER, GeoFile);
+      glAttachShader(prog, geo);
+      printf("success");
+   }
    //  Create and compile fragment shader
    int frag = CreateShader(GL_FRAGMENT_SHADER, FragFile);
    //  Attach fragment shader
@@ -563,9 +599,6 @@ void key(unsigned char ch, int x, int y)
    //  Light movement mode
    else if (ch == 'm' || ch == 'M')
       move = (move + 1) % 3;
-   //  Light-Switch on/off
-   else if (ch == 'l' || ch == 'L')
-      light = !light;
    //  Ambient level
    else if (ch == 'a' && ambient > 0)
       ambient -= 5;
@@ -647,12 +680,10 @@ int main(int argc, char *argv[])
    glutKeyboardFunc(key);
    LoadTexBMP("489.bmp");
    //  Shaders
-   shader[1] = CreateShaderProg("pixtex.vert", "pixtex.frag");
-   shader[2] = CreateShaderProg("simple.vert", "simple.frag");
-   shader[3] = CreateShaderProg("gl4.vert", "gl4.frag");
-   shader[4] = CreateShaderProg("simple.vert", "simple.frag");
-   shader[5] = CreateShaderProg("gl4.vert", "gl4.frag");
-   //shader[3] = CreateShaderProg("normals.vert","normals.frag", "normals.geo");
+   shader[1] = CreateShaderProg("pixtex.vert", "pixtex.frag", NULL);
+   shader[2] = CreateShaderProg("simple.vert", "simple.frag", NULL);
+   shader[3] = CreateShaderProg("normals.vert", "normals.frag", "normals.geo");
+
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();

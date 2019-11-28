@@ -14,10 +14,10 @@ uniform mat3 NormalMatrix;
 //  Likely does not work on other hardware
 //  You should construct your objects using glBuffer and
 //  then use glBindAttribLocation to map to these attributes
-layout(location = 0) in vec3 vertex_position;
-layout(location = 1) in vec3 vertex_normal;
-layout(location = 2) in vec3 vertex_color;
-layout(location = 3) in vec3 vertex_tex;
+layout(location = 0) in vec3 Vertex;
+layout(location = 1) in vec3 Normal;
+layout(location = 2) in vec3 Color;
+layout(location = 3) in vec2 Texture;
 
 //  Light properties
 uniform vec4 Position;

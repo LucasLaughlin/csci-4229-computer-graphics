@@ -1,20 +1,33 @@
+#version 330
+layout(points) in;
 
-varying vec3 View;
-varying vec3 Light;
-varying vec3 Normal;
+// Three lines will be generated: 6 vertices
+layout(line_strip, max_vertices=6) out;
 
+//  Transformation matrices
+uniform mat4 ModelViewMatrix;
+uniform mat4 ViewMatrix;
+uniform mat4 ProjectionMatrix;
+uniform mat3 NormalMatrix;
 
-void main(void)
+in VS_OUT {
+    vec3 normal;
+} gs_in[];
+
+const float MAGNITUDE = 10;
+
+void GenerateLine(int index)
 {
-    int i;
+  gl_Position = gl_in[index].gl_Position;
+  EmitVertex();
+  gl_Position = gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * MAGNITUDE;
+  EmitVertex();
+  EndPrimitive();
+}
 
-    for (i = 0; i < gl_in.length(); i++)
-    {
-        gl_Position = gl_in[i].gl_Position;
-        EmitVertex();
-    }
-    EndPrimitive();
-    Normal=Normal;
-    Light=Light;
-    View=View;
+void main()
+{
+  GenerateLine(0); // first vertex normal
+  GenerateLine(1); // second vertex normal
+  GenerateLine(2); // third vertex normal
 }

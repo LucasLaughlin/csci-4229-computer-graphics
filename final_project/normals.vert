@@ -1,13 +1,20 @@
+#version 330
 
-#version 330 core
+//  Transformation matrices
+uniform mat4 ModelViewMatrix;
+uniform mat4 ViewMatrix;
+uniform mat4 ProjectionMatrix;
+uniform mat3 NormalMatrix;
 
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
-uniform mat4 modelMatrix;
+layout(location = 0) in vec3 vertex_position;
+layout(location = 1) in vec3 vertex_normal;
+
+out VS_OUT {
+    vec3 normal;
+} vs_out;
 
 void main()
-{	
-  vec4 world_pos = modelMatrix * gl_Vertex;
-  vec4 view_pos = viewMatrix * world_pos;
-  gl_Position = projectionMatrix * view_pos;
+{
+  gl_Position =  ProjectionMatrix * ModelViewMatrix * vec4(vertex_position, 1.0);
+  vs_out.normal = normalize(vec3(ProjectionMatrix * vec4(NormalMatrix * vertex_position, 0.0)));
 }
