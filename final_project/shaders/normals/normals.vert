@@ -16,5 +16,5 @@ out VS_OUT {
 void main()
 {
   gl_Position =  ProjectionMatrix * ModelViewMatrix * vec4(vertex_position, 1.0);
-  vs_out.normal = normalize(vec3(ProjectionMatrix * vec4(NormalMatrix * vertex_position, 0.0)));
+  vs_out.normal = normalize(NormalMatrix * vertex_normal);
 }

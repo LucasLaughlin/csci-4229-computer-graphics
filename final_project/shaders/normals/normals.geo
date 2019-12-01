@@ -1,5 +1,5 @@
 #version 330
-layout(points) in;
+layout(triangles) in;
 
 // Three lines will be generated: 6 vertices
 layout(line_strip, max_vertices=6) out;
@@ -14,13 +14,17 @@ in VS_OUT {
     vec3 normal;
 } gs_in[];
 
-const float MAGNITUDE = 10;
+out vec3 color;
+
+const float MAGNITUDE = 0.2;
 
 void GenerateLine(int index)
 {
   gl_Position = gl_in[index].gl_Position;
+  color=vec3(1.0,1.0,1.0);
   EmitVertex();
   gl_Position = gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * MAGNITUDE;
+  color=vec3(1.0,0.0,0.0);
   EmitVertex();
   EndPrimitive();
 }

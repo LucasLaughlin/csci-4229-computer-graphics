@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 //  Transformation matrices
 uniform mat4 ModelViewMatrix;
@@ -26,16 +26,22 @@ void main()
 {
   //  Vertex location in modelview coordinates
   vec4 P = ModelViewMatrix * vec4(vertex_position, 1.0);
+
   //  Light direction
   Light = vec3(ViewMatrix * Position - P);
+
   //  Normal vector
   Norm = NormalMatrix * vertex_normal;
+
   //  Eye position
   View  = -P.xyz;
+
   //  Set diffuse to Color
   Kd = vec4(vertex_color, 1.0);
+
   //  Texture
   TexCoord = vertex_texture;
+  
   //  Set transformed vertex location
   gl_Position =  ProjectionMatrix * ModelViewMatrix * vec4(vertex_position, 1.0);
 }

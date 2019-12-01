@@ -13,35 +13,36 @@
  *    figure out specular, emission light etc
  *    refactor Hat function
  */
-#include "CSCIx229.h"
+#include "CSCI_helpers/CSCIx229.h"
 #include "cglm/cglm.h"
-int normals = 0; // Display normal vectors
-int axes = 1;    // Display axes
-double t = 0;    // Timer
+int      normals = 0;   // Display normal vectors
+int      axes = 1;      // Display axes
+double   t = 0;         // Timer
 
 /*    Camera/Eye position    */
-int th = 30; //  Azimuth of view angle
-int ph = 30; //  Elevation of view angle
+int      th = 30;       //  Azimuth of view angle
+int      ph = 30;       //  Elevation of view angle
 
 /*    Projection model values    */
-double asp = 1;   //  Aspect ratio
-double dim = 4.0; //  Size of world
-int fov = 65;     //  Field of view
+double   asp = 1;       //  Aspect ratio
+double   dim = 4.0;     //  Size of world
+int      fov = 65;      //  Field of view
 
 /*    Light model values     */
-int smooth = 1;    // Smooth/Flat shading
-int emission = 0;  // Emission intensity (%)
-int ambient = 30;  // Ambient intensity (%)
-int diffuse = 100; // Diffuse intensity (%)
-int specular = 0;  // Specular intensity (%)
-int shininess = 0; // Shininess (power of two)
-float shiny = 1;   // Shininess (value)
+int      smooth = 1;    // Smooth/Flat shading
+int      emission = 0;  // Emission intensity (%)
+int      ambient = 30;  // Ambient intensity (%)
+int      diffuse = 100; // Diffuse intensity (%)
+int      specular = 0;  // Specular intensity (%)
+int      shininess = 0; // Shininess (power of two)
+float    shiny = 1;     // Shininess (value)
 
 /*    Floating light positioning     */
-int zh = 90;      // Light azimuth
-float ylight = 0; // Elevation of light
-int distance = 5; // Light distanced
-int move = 0;     // Light ball movement type
+int      zh = 90;       // Light azimuth
+float    ylight = 0;    // Elevation of light
+int      distance = 5;  // Light distance
+int      move = 0;      // Light ball movement type
+float    Position[4];
 
 /*    Texture variables for hat    */
 double rep = 1;
@@ -50,57 +51,20 @@ int ntex = 0;
 unsigned int texture[3];
 
 /*    Shader variables     */
-int shader_mode = 2;
-int shader[] = {0, 0, 0, 0, 0, 0};
-int num_shaders = sizeof(shader) / sizeof(int);
+int shader_mode = 2;                               //  Current active shader
+int shader[] = {0, 0, 0, 0};                       //  Array to hold shader programs
+int num_shaders = sizeof(shader) / sizeof(int);    //  number of shaders
+
+/*    Shaddow Map Variables      */
+int shadowdim;          // Size of shadow map textures
+unsigned int framebuf=0;// Frame buffer id
+double       Svec[4];   // Texture planes S
+double       Tvec[4];   // Texture planes T
+double       Rvec[4];   // Texture planes R
+double       Qvec[4];   // Texture planes Q
 
 /*    Test variables     */
 int init = 1;
-
-/*    Draw vertex in polar coordinates      */
-static void Vertex(double th, double ph)
-{
-   glNormal3d(Sin(th) * Cos(ph), Cos(th) * Cos(ph), Sin(ph));
-   glVertex3d(Sin(th) * Cos(ph), Cos(th) * Cos(ph), Sin(ph));
-}
-
-/* Draw a sphere
- *     at (x,y,z)
- *     radius (r)
- */
-static void sphere(double x, double y, double z, double r)
-{
-   const int d = 15;
-   int th, ph;
-   float yellow[] = {1.0, 1.0, 0.0, 1.0};
-   float Emission[] = {0.0, 0.0, 0.01 * emission, 1.0};
-
-   //  Save transformation
-   glPushMatrix();
-   //  Offset and scale
-   glTranslated(x, y, z);
-   glScaled(r, r, r);
-
-   glColor3f(1, 1, 1);
-   glMaterialf(GL_FRONT, GL_SHININESS, shiny);
-   glMaterialfv(GL_FRONT, GL_SPECULAR, yellow);
-   glMaterialfv(GL_FRONT, GL_EMISSION, Emission);
-
-   //  Latitude bands
-   for (ph = -90; ph < 90; ph += d)
-   {
-      glBegin(GL_QUAD_STRIP);
-      for (th = 0; th <= 360; th += d)
-      {
-         Vertex(th, ph);
-         Vertex(th, ph + d);
-      }
-      glEnd();
-   }
-
-   //  Undo transformations
-   glPopMatrix();
-}
 
 static void FillBuffer(int index, float bufName[], float x, float y, float z)
 {
@@ -148,18 +112,96 @@ static void Hat(double x, double y, double z, double r)
    int angle_max = 360;
 
    /*    Set up Buffer arays for Shaders     */
-   int bufferLen = ((r_max / r_step) + 1) * ((angle_max / angle_step) + 1) * 4; //(number of r steps + 1 for 0 index) * (number of angle steps + 1 for 0 index) * 4 points drawn per point on hat * 2 hats
+   int bufferLen = ((r_max / r_step) + 1) * ((angle_max / angle_step) + 1) * 4 * 2; //(number of r steps + 1 for 0 index) * (number of angle steps + 1 for 0 index) * 4 points drawn per point on hat * 2 hats
    float position[bufferLen * 3];
    float normals[bufferLen * 3];
    float colors[bufferLen * 3];
    float textCoords[bufferLen * 2];
    int bufIndexCount = 0;
 
+   for (float r = 0; r <= r_max; r += r_step)
+   {
+
+      glBegin(GL_TRIANGLE_STRIP);
+
+      int textFix = 0;
+      for (int angle = 0; angle <= angle_max; angle += angle_step)
+      {
+         float xv = ((sqrt(2) * sqrt(0.5)) + r) * Cos(angle);
+         float zv = r * Sin(angle);
+         float yv = a * pow(sqrt(pow(xv, 2) / 2 + pow(zv, 2)), 4) + c * pow(sqrt(pow(xv, 2) / 2 + pow(zv, 2)), 2) + e;
+         float yv_brim = 0.1 * pow(zv, 2) - 0.1;
+         float iv, jv, kv;
+         if (yv >= yv_brim - 1.5)
+         {
+            iv = -1*(-0.5 * pow(xv, 3) - xv * pow(zv, 2) + 0.9 * xv);
+            jv = 1;
+            kv = -1*(-2 * pow(zv, 3) - zv * pow(xv, 2) + 1.8 * zv);
+         }
+         else
+         {
+            iv = 0;
+            jv = 1;
+            kv = -0.2 * zv;
+         }
+
+         if (shader_mode <= 1)
+         {
+            glNormal3f(iv, jv, kv);
+            glColor3f(0.54, 0.27, 0.075 + yv / 12);
+            glTexCoord2f(0.0, textFix ? 0.0 : rep);
+            glVertex3f(xv, fmax(yv, yv_brim), zv);
+         }
+         else
+         {
+            FillBuffer(bufIndexCount, position, xv, fmax(yv, yv_brim), zv);
+            FillBuffer(bufIndexCount, normals, iv, jv, kv);
+            FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv / 12);
+            FillBuffer(bufIndexCount / 3 * 2, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
+         }
+         bufIndexCount += 3;
+
+         float xv_step = ((sqrt(2) * sqrt(0.5)) + (r + r_step)) * Cos(angle);
+         float zv_step = (r + r_step) * Sin(angle);
+         float yv_step = a * pow(sqrt(pow(xv_step, 2) / 2 + pow(zv_step, 2)), 4) + c * pow(sqrt(pow(xv_step, 2) / 2 + pow(zv_step, 2)), 2) + e;
+         float yv_step_brim = 0.1 * pow(zv_step, 2) - 0.1;
+
+         if (yv_step >= yv_step_brim - 1.5)
+         {
+            iv = -1*(-0.5 * pow(xv_step, 3) - xv_step * pow(zv_step, 2) + 0.9 * xv_step);
+            jv = 1;
+            kv = -1*(-2 * pow(zv_step, 3) - zv_step * pow(xv_step, 2) + 1.8 * zv_step);
+         }
+         else
+         {
+            iv = 0;
+            jv = 1;
+            kv = -0.2 * zv_step;
+         }
+         if (shader_mode <= 1)
+         {
+            glNormal3f(iv, jv, kv);
+            glColor3f(0.54, 0.27, 0.075 + yv_step / 12);
+            glTexCoord2f(rep, textFix ? 0.0 : rep);
+            glVertex3f(xv_step, fmax(yv_step, yv_step_brim), zv_step);
+         }
+         else
+         {
+            FillBuffer(bufIndexCount, position, xv_step, fmax(yv_step, yv_step_brim), zv_step);
+            FillBuffer(bufIndexCount, normals, iv, jv, kv);
+            FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv_step / 12);
+            FillBuffer(bufIndexCount / 3 * 2, textCoords, rep, textFix ? 0.0 : rep, NAN);
+         }
+         bufIndexCount += 3;
+         textFix = !textFix;
+      }
+      glEnd();
+   }
    float closure = -0.1;
    for (float r = 0; r <= r_max; r += r_step)
    {
 
-      glBegin(GL_QUAD_STRIP);
+      glBegin(GL_TRIANGLE_STRIP);
 
       int textFix = 0;
       for (int angle = 0; angle <= angle_max; angle += angle_step)
@@ -195,7 +237,7 @@ static void Hat(double x, double y, double z, double r)
             FillBuffer(bufIndexCount, position, xv, fmax(yv, yv_brim), zv);
             FillBuffer(bufIndexCount, normals, iv, jv, kv);
             FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv / 12);
-            FillBuffer(bufIndexCount/3*2, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
+            FillBuffer(bufIndexCount / 3 * 2, textCoords, 0.0, textFix ? 0.0 : rep, NAN);
          }
          bufIndexCount += 3;
          if (r > 2.9)
@@ -231,7 +273,7 @@ static void Hat(double x, double y, double z, double r)
             FillBuffer(bufIndexCount, position, xv_step, fmax(yv_step, yv_step_brim), zv_step);
             FillBuffer(bufIndexCount, normals, iv, jv, kv);
             FillBuffer(bufIndexCount, colors, 0.54, 0.27, 0.075 + yv_step / 12);
-            FillBuffer(bufIndexCount/3*2, textCoords, rep, textFix ? 0.0 : rep, NAN);
+            FillBuffer(bufIndexCount / 3 * 2, textCoords, rep, textFix ? 0.0 : rep, NAN);
          }
          bufIndexCount += 3;
          textFix = !textFix;
@@ -271,11 +313,13 @@ static void Hat(double x, double y, double z, double r)
    //9300 - bufIndexCount
    //6200 - bufferLen
 
-   glDrawArrays(GL_QUAD_STRIP, 0, bufIndexCount / 3);
-
    glPopMatrix();
    //  Switch off textures so it doesn't apply to the rest
    glDisable(GL_TEXTURE_2D);
+   //Draw Top Hat
+   glDrawArrays(GL_TRIANGLE_STRIP, 0, bufIndexCount / 6);
+   //Draw Bottom Hat
+   glDrawArrays(GL_TRIANGLE_STRIP, bufIndexCount / 6, bufIndexCount / 6);
 }
 
 /* Draw axes */
@@ -314,6 +358,79 @@ static void Info()
    Print("Angle=%d,%d | Dim=%.1f | FOV=%d | shader:%d | normals:%d", th, ph, dim, fov, shader_mode, normals);
 }
 
+/*
+ *  Set light
+ *    light>0 bright
+ *    light<0 dim
+ *    light=0 off
+ */
+static void Light(int light)
+{
+   //  Set light position
+   Position[0] = 2*Cos(zh);
+   Position[1] = ylight;
+   Position[2] = 2*Sin(zh);
+   Position[3] = 1;
+
+   //  Enable lighting
+   if (light)
+   {
+      float Med[]  = {0.3,0.3,0.3,1.0};
+      float High[] = {1.0,1.0,1.0,1.0};
+      //  Enable lighting with normalization
+      glEnable(GL_LIGHTING);
+      glEnable(GL_NORMALIZE);
+      //  glColor sets ambient and diffuse color materials
+      glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
+      glEnable(GL_COLOR_MATERIAL);
+      //  Enable light 0
+      glEnable(GL_LIGHT0);
+      glLightfv(GL_LIGHT0,GL_POSITION,Position);
+      glLightfv(GL_LIGHT0,GL_AMBIENT,Med);
+      glLightfv(GL_LIGHT0,GL_DIFFUSE,High);
+   }
+   else
+   {
+      glDisable(GL_LIGHTING);
+      glDisable(GL_COLOR_MATERIAL);
+      glDisable(GL_NORMALIZE);
+   }
+}
+
+void SetUniformMatrices(int shader_index)
+{
+   float ViewMatrix[16], ModelViewMatrix[16], ProjectionMatrix[16];
+   glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
+   glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
+   glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
+   /* printf("%f", ProjectionMatrix[10]) */
+
+   mat3 inverse, NormalMatrix;
+
+   mat3 submatrix = {
+       {ModelViewMatrix[0], ModelViewMatrix[1], ModelViewMatrix[2]},
+       {ModelViewMatrix[4], ModelViewMatrix[5], ModelViewMatrix[6]},
+       {ModelViewMatrix[8], ModelViewMatrix[9], ModelViewMatrix[10]}};
+
+   glm_mat3_inv(submatrix, inverse);
+   glm_mat3_transpose_to(inverse, NormalMatrix);
+
+   int id;
+   //  Set matrixes
+   id = glGetUniformLocation(shader[shader_index], "ModelViewMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ModelViewMatrix);
+   id = glGetUniformLocation(shader[shader_index], "ViewMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ViewMatrix);
+   id = glGetUniformLocation(shader[shader_index], "ProjectionMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
+   id = glGetUniformLocation(shader[shader_index], "NormalMatrix");
+   if (id >= 0)
+      glUniformMatrix3fv(id, 1, 0, (float *)NormalMatrix);
+}
+
 /*    OpenGL (GLUT) calls this routine to display the scene    */
 void display()
 {
@@ -321,6 +438,9 @@ void display()
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    //  Enable Z-buffering in OpenGL
    glEnable(GL_DEPTH_TEST);
+   /* glDepthFunc(GL_LEQUAL);
+   glFrontFace(GL_CCW);   
+   glEnable(GL_CULL_FACE);  */ 
    //  Undo previous transformations
    glLoadIdentity();
 
@@ -334,18 +454,23 @@ void display()
    glShadeModel(smooth ? GL_SMOOTH : GL_FLAT);
 
    //  Translate intensity to color vectors
-   float Emission[]  = {0.1 * emission,0.1 * emission,0.1 * emission,1.0};
+   float Emission[] = {0.1 * emission, 0.1 * emission, 0.1 * emission, 1.0};
    float Ambient[] = {0.01 * ambient, 0.01 * ambient, 0.01 * ambient, 1.0};
    float Diffuse[] = {0.01 * diffuse, 0.01 * diffuse, 0.01 * diffuse, 1.0};
    float Specular[] = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
    float Shinyness[] = {16};
 
    //  Light position
-   float Position[] = {distance * Cos(zh), ylight, distance * Sin(zh), 1.0};
-   
-   
+   Position[0] = distance * Cos(zh);
+   Position[1] = ylight;
+   Position[2] = distance * Sin(zh);
+   Position[3] = 1.0;
+   //  Draw light position as sphere (still no lighting here)
+   glPushMatrix();
    glColor3f(1, 1, 1);
-   sphere(Position[0], Position[1], Position[2], 0.1);
+   glTranslated(Position[0], Position[1], Position[2]);
+   glutSolidSphere(0.03, 10, 10);
+   glPopMatrix();
 
    //  OpenGL should normalize normal vectors
    glEnable(GL_NORMALIZE);
@@ -363,40 +488,16 @@ void display()
    glLightfv(GL_LIGHT0, GL_DIFFUSE, Diffuse);
    glLightfv(GL_LIGHT0, GL_SPECULAR, Specular);
    glLightfv(GL_LIGHT0, GL_POSITION, Position);
+   
+   if(normals){
+      glUseProgram(shader[3]);
+      SetUniformMatrices(3);
+      Hat(0, 0, 0, 1);
+   }
 
    glUseProgram(shader[shader_mode]);
-   
-   float ViewMatrix[16], ModelViewMatrix[16], ProjectionMatrix[16];
-   glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
-   glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
-   glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
-   /* printf("%f", ProjectionMatrix[10]) */
-
-   mat3 inverse, NormalMatrix;
-   
-   mat3 submatrix = {
-      {ModelViewMatrix[0], ModelViewMatrix[1], ModelViewMatrix[2]},
-      {ModelViewMatrix[4], ModelViewMatrix[5], ModelViewMatrix[6]},
-      {ModelViewMatrix[8], ModelViewMatrix[9], ModelViewMatrix[10]}
-   };
-
-   glm_mat3_inv(submatrix, inverse);
-   glm_mat3_transpose_to(inverse, NormalMatrix);
-
+   SetUniformMatrices(shader_mode);
    int id;
-   //  Set matrixes
-   id = glGetUniformLocation(shader[shader_mode], "ModelViewMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ModelViewMatrix);
-   id = glGetUniformLocation(shader[shader_mode], "ViewMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ViewMatrix);
-   id = glGetUniformLocation(shader[shader_mode], "ProjectionMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
-   id = glGetUniformLocation(shader[shader_mode], "NormalMatrix");
-   if (id >= 0)
-      glUniformMatrix3fv(id, 1, 0, (float *)NormalMatrix);
    //  Set lighting parameters
    id = glGetUniformLocation(shader[shader_mode], "Position");
    if (id >= 0)
@@ -423,12 +524,9 @@ void display()
 
    // Draw Hat
    Hat(0, 0, 0, 1);
-   if(normals){
-      glUseProgram(shader[3]);
-      Hat(0,0,0,1);
-   }
-   // Draw axes
+
    glUseProgram(shader[0]);
+   // Draw axes
    Axes();
    // Write info
    Info();
@@ -532,7 +630,8 @@ int CreateShaderProg(char *VertFile, char *FragFile, char *GeoFile)
    int vert = CreateShader(GL_VERTEX_SHADER, VertFile);
    //  Attach vertex shader
    glAttachShader(prog, vert);
-   if (GeoFile != NULL){
+   if (GeoFile != NULL)
+   {
       int geo = CreateShader(GL_GEOMETRY_SHADER, GeoFile);
       glAttachShader(prog, geo);
       printf("success");
@@ -652,6 +751,149 @@ void idle()
    glutPostRedisplay();
 }
 
+
+/*
+ *  Build Shadow Map
+ */
+void ShadowMap(void)
+{
+   double Lmodel[16];  //  Light modelview matrix
+   double Lproj[16];   //  Light projection matrix
+   double Tproj[16];   //  Texture projection matrix
+   double Dim=2.0;     //  Bounding radius of scene
+   double Ldist;       //  Distance from light to scene center
+
+   //  Save transforms and modes
+   glPushMatrix();
+   glPushAttrib(GL_TRANSFORM_BIT|GL_ENABLE_BIT);
+   //  No write to color buffer and no smoothing
+   glShadeModel(GL_FLAT);
+   glColorMask(0,0,0,0);
+   // Overcome imprecision
+   glEnable(GL_POLYGON_OFFSET_FILL);
+
+   //  Turn off lighting and set light position
+   Light(0);
+
+   //  Light distance
+   Ldist = sqrt(Position[0]*Position[0] + Position[1]*Position[1] + Position[2]*Position[2]);
+   if (Ldist<1.1*Dim) Ldist = 1.1*Dim;
+
+   //  Set perspective view from light position
+   glMatrixMode(GL_PROJECTION);
+   glLoadIdentity();
+   gluPerspective(114.6*atan(Dim/Ldist),1,Ldist-Dim,Ldist+Dim);
+   glMatrixMode(GL_MODELVIEW);
+   glLoadIdentity();
+   gluLookAt(Position[0],Position[1],Position[2] , 0,0,0 , 0,1,0);
+   //  Size viewport to desired dimensions
+   glViewport(0,0,shadowdim,shadowdim);
+
+   // Redirect traffic to the frame buffer
+   glBindFramebuffer(GL_FRAMEBUFFER,framebuf);
+
+   // Clear the depth buffer
+   glClear(GL_DEPTH_BUFFER_BIT);
+   // Draw all objects that can cast a shadow
+   Scene(0);
+
+   //  Retrieve light projection and modelview matrices
+   glGetDoublev(GL_PROJECTION_MATRIX,Lproj);
+   glGetDoublev(GL_MODELVIEW_MATRIX,Lmodel);
+
+   // Set up texture matrix for shadow map projection,
+   // which will be rolled into the eye linear
+   // texture coordinate generation plane equations
+   glLoadIdentity();
+   glTranslated(0.5,0.5,0.5);
+   glScaled(0.5,0.5,0.5);
+   glMultMatrixd(Lproj);
+   glMultMatrixd(Lmodel);
+
+   // Retrieve result and transpose to get the s, t, r, and q rows for plane equations
+   glGetDoublev(GL_MODELVIEW_MATRIX,Tproj);
+   Svec[0] = Tproj[0];    Tvec[0] = Tproj[1];    Rvec[0] = Tproj[2];    Qvec[0] = Tproj[3];
+   Svec[1] = Tproj[4];    Tvec[1] = Tproj[5];    Rvec[1] = Tproj[6];    Qvec[1] = Tproj[7];
+   Svec[2] = Tproj[8];    Tvec[2] = Tproj[9];    Rvec[2] = Tproj[10];   Qvec[2] = Tproj[11];
+   Svec[3] = Tproj[12];   Tvec[3] = Tproj[13];   Rvec[3] = Tproj[14];   Qvec[3] = Tproj[15];
+
+   // Restore normal drawing state
+   glShadeModel(GL_SMOOTH);
+   glColorMask(1,1,1,1);
+   glDisable(GL_POLYGON_OFFSET_FILL);
+   glPopAttrib();
+   glPopMatrix();
+   glBindFramebuffer(GL_FRAMEBUFFER,0);
+
+   //  Check if something went wrong
+   ErrCheck("ShadowMap");
+}
+
+/*
+ *
+ */
+void InitMap()
+{
+   unsigned int shadowtex; //  Shadow buffer texture id
+   int n;
+
+   //  Make sure multi-textures are supported
+   glGetIntegerv(GL_MAX_TEXTURE_UNITS,&n);
+   if (n<2) Fatal("Multiple textures not supported\n");
+
+   //  Get maximum texture buffer size
+   glGetIntegerv(GL_MAX_TEXTURE_SIZE,&shadowdim);
+   //  Limit texture size to maximum buffer size
+   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&n);
+   if (shadowdim>n) shadowdim = n;
+   //  Limit texture size to 2048 for performance
+   if (shadowdim>2048) shadowdim = 2048;
+   if (shadowdim<512) Fatal("Shadow map dimensions too small %d\n",shadowdim);
+
+   //  Do Shadow textures in MultiTexture 1
+   glActiveTexture(GL_TEXTURE1);
+
+   //  Allocate and bind shadow texture
+   glGenTextures(1,&shadowtex);
+   glBindTexture(GL_TEXTURE_2D,shadowtex);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowdim, shadowdim, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+   //  Map single depth value to RGBA (this is called intensity)
+   glTexParameteri(GL_TEXTURE_2D,GL_DEPTH_TEXTURE_MODE,GL_INTENSITY);
+
+   //  Set texture mapping to clamp and linear interpolation
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+
+   //  Set automatic texture generation mode to Eye Linear
+   glTexGeni(GL_S,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
+   glTexGeni(GL_T,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
+   glTexGeni(GL_R,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
+   glTexGeni(GL_Q,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
+
+   // Switch back to default textures
+   glActiveTexture(GL_TEXTURE0);
+
+   // Attach shadow texture to frame buffer
+   glGenFramebuffers(1,&framebuf);
+   glBindFramebuffer(GL_FRAMEBUFFER,framebuf);
+   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowtex, 0);
+   //  Don't write or read to visible color buffer
+   glDrawBuffer(GL_NONE);
+   glReadBuffer(GL_NONE);
+   //  Make sure this all worked
+   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) Fatal("Error setting up frame buffer\n");
+   glBindFramebuffer(GL_FRAMEBUFFER,0);
+
+   //  Check if something went wrong
+   ErrCheck("InitMap");
+
+   //  Create shadow map
+   ShadowMap();
+}
+
 /*    Start up GLUT and tell it what to do     */
 int main(int argc, char *argv[])
 {
@@ -678,11 +920,11 @@ int main(int argc, char *argv[])
    glutSpecialFunc(special);
    //  Tell GLUT to call "key" when a key is pressed
    glutKeyboardFunc(key);
-   LoadTexBMP("489.bmp");
+   LoadTexBMP("./textures/489.bmp");
    //  Shaders
-   shader[1] = CreateShaderProg("pixtex.vert", "pixtex.frag", NULL);
-   shader[2] = CreateShaderProg("simple.vert", "simple.frag", NULL);
-   shader[3] = CreateShaderProg("normals.vert", "normals.frag", "normals.geo");
+   shader[1] = CreateShaderProg("./shaders/pixtex/pixtex.vert", "./shaders/pixtex/pixtex.frag", NULL);
+   shader[2] = CreateShaderProg("./shaders/simple/simple.vert", "./shaders/simple/simple.frag", NULL);
+   shader[3] = CreateShaderProg("./shaders/normals/normals.vert", "./shaders/normals/normals.frag", "./shaders/normals/normals.geo");
 
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
