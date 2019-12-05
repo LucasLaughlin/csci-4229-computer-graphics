@@ -7,6 +7,7 @@ uniform mat4 ModelViewMatrix;
 uniform mat4 ViewMatrix;
 uniform mat4 ProjectionMatrix;
 uniform mat3 NormalMatrix;
+uniform mat4 ModelMatrix;
 
 //  Vertex attributes (input)
 //  Locations are hard wired to match nVidia fixed pipeline
@@ -14,10 +15,10 @@ uniform mat3 NormalMatrix;
 //  Likely does not work on other hardware
 //  You should construct your objects using glBuffer and
 //  then use glBindAttribLocation to map to these attributes
-layout(location = 0) in vec3 Vertex;
-layout(location = 1) in vec3 Normal;
-layout(location = 2) in vec3 Color;
-layout(location = 3) in vec2 Texture;
+layout(location = 0) in vec3 vertex_position;
+layout(location = 1) in vec3 vertex_normal;
+layout(location = 2) in vec3 vertex_color;
+layout(location = 3) in vec2 vertex_texture;
 
 //  Light properties
 uniform vec4 Position;
@@ -32,17 +33,17 @@ out vec4 Kd;
 void main()
 {
    //  Vertex location in modelview coordinates
-   vec4 P = ModelViewMatrix * Vertex;
+   vec4 P = ModelViewMatrix * vertex_position;
    //  Light direction
-   Light = vec3(ViewMatrix * Position - P);
+   Light = vec3(ViewMatrix * vertex_position - P);
    //  Normal vector
-   Norm = NormalMatrix * Normal;
+   Norm = NormalMatrix * vertex_normal;
    //  Eye position
    View  = -P.xyz;
    //  Set diffuse to Color
-   Kd = Color;
+   Kd = vertex_color;
    //  Texture
-   TexCoord = Texture;
+   TexCoord = vertex_texture;
    //  Set transformed vertex location
-   gl_Position =  ProjectionMatrix * ModelViewMatrix * Vertex;
+   gl_Position =  ProjectionMatrix * ViewMatrix * ModelMatrix vertex_position;
 }

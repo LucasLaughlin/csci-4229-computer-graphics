@@ -19,6 +19,13 @@ uniform vec4 Ambient;
 uniform vec4 Diffuse;
 uniform vec4 Specular;
 
+//  Transformation matrices
+uniform mat4 ModelViewMatrix;
+uniform mat4 ViewMatrix;
+uniform mat4 ProjectionMatrix;
+uniform mat3 NormalMatrix;
+uniform mat4 ModelMatrix;
+
 //  Texture
 uniform sampler2D tex;
 
@@ -43,7 +50,8 @@ void main()
 
    //  Sum color types
    vec4 color = Ke + Kd*Ambient + Id*Kd*Diffuse + Is*Ks*Specular;
-
+   
    //  Apply texture
    FragColor = color * texture2D(tex,TexCoord);
+   
 }

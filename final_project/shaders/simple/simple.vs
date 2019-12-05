@@ -5,6 +5,7 @@ uniform mat4 ModelViewMatrix;
 uniform mat4 ViewMatrix;
 uniform mat4 ProjectionMatrix;
 uniform mat3 NormalMatrix;
+uniform mat4 ModelMatrix;
 
 layout(location = 0) in vec3 vertex_position;
 layout(location = 1) in vec3 vertex_normal;
@@ -25,7 +26,7 @@ out vec4 Kd;
 void main() 
 {
   //  Vertex location in modelview coordinates
-  vec4 P = ModelViewMatrix * vec4(vertex_position, 1.0);
+  vec4 P = ViewMatrix * ModelMatrix *  vec4(vertex_position, 1.0);
 
   //  Light direction
   Light = vec3(ViewMatrix * Position - P);
@@ -43,7 +44,7 @@ void main()
   TexCoord = vertex_texture;
   
   //  Set transformed vertex location
-  gl_Position =  ProjectionMatrix * ModelViewMatrix * vec4(vertex_position, 1.0);
+  gl_Position =  ProjectionMatrix  * ViewMatrix * ModelMatrix * vec4(vertex_position, 1.0);
 }
 
 

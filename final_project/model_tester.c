@@ -22,49 +22,58 @@ double   t = 0;         // Timer
 /*    Camera/Eye position    */
 int      th = 30;       //  Azimuth of view angle
 int      ph = 30;       //  Elevation of view angle
+float    Ex, Ey, Ez;    //  Eye/Camera position
 
 /*    Projection model values    */
 double   asp = 1;       //  Aspect ratio
 double   dim = 4.0;     //  Size of world
-int      fov = 65;      //  Field of view
+int      fov = 55;      //  Field of view
 
 /*    Light model values     */
-int      smooth = 1;    // Smooth/Flat shading
 int      emission = 0;  // Emission intensity (%)
 int      ambient = 30;  // Ambient intensity (%)
 int      diffuse = 100; // Diffuse intensity (%)
 int      specular = 0;  // Specular intensity (%)
-int      shininess = 0; // Shininess (power of two)
 float    shiny = 1;     // Shininess (value)
+float Diffuse[4], Ambient[4], Specular[4], Emission[4];
 
 /*    Floating light positioning     */
 int      zh = 90;       // Light azimuth
 float    ylight = 0;    // Elevation of light
 int      distance = 5;  // Light distance
 int      move = 0;      // Light ball movement type
-float    Position[4];
+float    Position[4];   // Light Position
 
 /*    Texture variables for hat    */
 double rep = 1;
 int texMode = 0;
 int ntex = 0;
 unsigned int texture[3];
+int tex = 0;
 
 /*    Shader variables     */
 int shader_mode = 2;                               //  Current active shader
-int shader[] = {0, 0, 0, 0};                       //  Array to hold shader programs
+int shader[] = {0, 0, 0, 0, 0, 0};                 //  Array to hold shader programs
 int num_shaders = sizeof(shader) / sizeof(int);    //  number of shaders
+int drawArrayShaders = 0;
 
 /*    Shaddow Map Variables      */
 int shadowdim;          // Size of shadow map textures
 unsigned int framebuf=0;// Frame buffer id
-double       Svec[4];   // Texture planes S
-double       Tvec[4];   // Texture planes T
-double       Rvec[4];   // Texture planes R
-double       Qvec[4];   // Texture planes Q
+GLuint       depthMapFBO;
+GLuint       depthMap;
+const GLuint SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+int SCR_WIDTH = 600, SCR_HEIGHT = 600;
+
+
+/*    VAOs     */
+GLuint      hatVao;
+GLuint      wallVao;
+GLuint      shadowVao;
 
 /*    Test variables     */
 int init = 1;
+mat4 gModelMatrix, gViewMatrix;
 
 static void FillBuffer(int index, float bufName[], float x, float y, float z)
 {
@@ -75,26 +84,78 @@ static void FillBuffer(int index, float bufName[], float x, float y, float z)
    return;
 }
 
+/* Draw a wall
+ */
+static void Wall( float St)
+{
+   int n=8;
+   int   i,j;
+   float s=1.0/n;
+   float t=0.5*St/n;
+   
+   int bufferLen = (3*n)*(3*n);
+   float position[bufferLen * 3];
+   float normals[bufferLen * 3];
+   float textCoords[bufferLen * 2];
+   int bufIndexCount=0;
+   //  Draw walls
+   for (j=-n;j<n;j++)
+   {
+      for (i=-n;i<=n;i++)
+      {
+         FillBuffer(bufIndexCount, position, i*s,    j*s,-1);
+         FillBuffer(bufIndexCount+3, position, i*s,(j+1)*s,-1);
+         FillBuffer(bufIndexCount, normals, 0, 0, 1);
+         FillBuffer(bufIndexCount+3, normals, 0, 0, 1);
+         FillBuffer(bufIndexCount / 3 * 2, textCoords, (i+n)*t,(j  +n)*t, NAN);
+         FillBuffer((bufIndexCount+3) / 3 * 2, textCoords,(i+n)*t,(j+1+n)*t, NAN);
+
+         bufIndexCount+=6;
+      }
+   }
+   
+   glBindVertexArray(wallVao);
+
+   GLuint position_vbo;
+   glGenBuffers(1, &position_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, position_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
+   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   GLuint normals_vbo;
+   glGenBuffers(1, &normals_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, normals_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   GLuint tex_vbo;
+   glGenBuffers(1, &tex_vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, tex_vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(textCoords), textCoords, GL_STATIC_DRAW);
+   glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   glEnableVertexAttribArray(0);
+   glEnableVertexAttribArray(1);
+   glEnableVertexAttribArray(3);
+   
+   glDrawArrays(GL_TRIANGLE_STRIP, 0, bufIndexCount / 3);
+   
+   glDeleteBuffers(1, &position_vbo);
+   glDeleteBuffers(1, &normals_vbo);
+   glDeleteBuffers(1, &tex_vbo);
+
+   glDisable(GL_TEXTURE_2D);
+}
+
 /* Draw cowboy hat 
  *    at (x,y,z)
  *    radius (r)
 
 */
-static void Hat(double x, double y, double z, double r)
+static void Hat()
 {
    glEnable(GL_TEXTURE_2D);
    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-   float white[] = {1, 1, 1, 1};
-   float black[] = {0, 0, 0, 1};
-   glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shiny);
-   glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
-   glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, black);
-   glPushMatrix();
-
-   //  Offset and scale
-   glTranslated(x, y, z);
-   glScaled(r, r, r);
 
    /*    Constants for hat curvature    */
    float a = -0.5; // x^4
@@ -280,6 +341,7 @@ static void Hat(double x, double y, double z, double r)
       }
       glEnd();
    }
+   glBindVertexArray(hatVao);
    GLuint position_vbo;
    glGenBuffers(1, &position_vbo);
    glBindBuffer(GL_ARRAY_BUFFER, position_vbo);
@@ -309,17 +371,17 @@ static void Hat(double x, double y, double z, double r)
    glEnableVertexAttribArray(2);
    glEnableVertexAttribArray(3);
 
-   //93006200
-   //9300 - bufIndexCount
-   //6200 - bufferLen
-
-   glPopMatrix();
+   
    //  Switch off textures so it doesn't apply to the rest
    glDisable(GL_TEXTURE_2D);
    //Draw Top Hat
    glDrawArrays(GL_TRIANGLE_STRIP, 0, bufIndexCount / 6);
    //Draw Bottom Hat
    glDrawArrays(GL_TRIANGLE_STRIP, bufIndexCount / 6, bufIndexCount / 6);
+   glDeleteBuffers(1, &position_vbo);
+   glDeleteBuffers(1, &normals_vbo);
+   glDeleteBuffers(1, &tex_vbo);
+   glDeleteBuffers(1, &colors_vbo);
 }
 
 /* Draw axes */
@@ -352,10 +414,12 @@ static void Axes()
 /* Draw Info */
 static void Info()
 {
-   glWindowPos2i(5, 50);
+   glWindowPos2i(5, 75);
    Print("Ambient=%d  Diffuse=%d Specular=%d Emission=%d", ambient, diffuse, specular, emission, shiny);
-   glWindowPos2i(5, 25);
+   glWindowPos2i(5, 50);
    Print("Angle=%d,%d | Dim=%.1f | FOV=%d | shader:%d | normals:%d", th, ph, dim, fov, shader_mode, normals);
+   glWindowPos2i(5, 25);
+   Print("Camera (%f, %f, %f)", Ex, Ey, Ez);
 }
 
 /*
@@ -367,16 +431,14 @@ static void Info()
 static void Light(int light)
 {
    //  Set light position
-   Position[0] = 2*Cos(zh);
+   Position[0] = distance*Cos(zh);
    Position[1] = ylight;
-   Position[2] = 2*Sin(zh);
+   Position[2] = distance*Sin(zh);
    Position[3] = 1;
 
    //  Enable lighting
    if (light)
    {
-      float Med[]  = {0.3,0.3,0.3,1.0};
-      float High[] = {1.0,1.0,1.0,1.0};
       //  Enable lighting with normalization
       glEnable(GL_LIGHTING);
       glEnable(GL_NORMALIZE);
@@ -385,9 +447,6 @@ static void Light(int light)
       glEnable(GL_COLOR_MATERIAL);
       //  Enable light 0
       glEnable(GL_LIGHT0);
-      glLightfv(GL_LIGHT0,GL_POSITION,Position);
-      glLightfv(GL_LIGHT0,GL_AMBIENT,Med);
-      glLightfv(GL_LIGHT0,GL_DIFFUSE,High);
    }
    else
    {
@@ -397,14 +456,17 @@ static void Light(int light)
    }
 }
 
+void Camera(){
+   Ex = -2 * dim * Sin(th) * Cos(ph);
+   Ey = +2 * dim * Sin(ph);
+   Ez = +2 * dim * Cos(th) * Cos(ph);
+}
+
 void SetUniformMatrices(int shader_index)
 {
-   float ViewMatrix[16], ModelViewMatrix[16], ProjectionMatrix[16];
+   float /* ViewMatrix[16],  */ModelViewMatrix[16], ProjectionMatrix[16];
    glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
-   glGetFloatv(GL_MODELVIEW_MATRIX, ViewMatrix);
    glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
-   /* printf("%f", ProjectionMatrix[10]) */
-
    mat3 inverse, NormalMatrix;
 
    mat3 submatrix = {
@@ -414,6 +476,13 @@ void SetUniformMatrices(int shader_index)
 
    glm_mat3_inv(submatrix, inverse);
    glm_mat3_transpose_to(inverse, NormalMatrix);
+   mat4 ViewMatrix;
+   Camera();
+   vec3 ViewPos={Ex, Ey, Ez};
+   glm_lookat(ViewPos, 
+              (vec3){ 0.0f, 0.0f,  0.0f}, 
+              (vec3){ 0.0f, Cos(ph),  0.0f}, 
+              ViewMatrix);
 
    int id;
    //  Set matrixes
@@ -422,7 +491,7 @@ void SetUniformMatrices(int shader_index)
       glUniformMatrix4fv(id, 1, 0, ModelViewMatrix);
    id = glGetUniformLocation(shader[shader_index], "ViewMatrix");
    if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ViewMatrix);
+      glUniformMatrix4fv(id, 1, 0, (float *)ViewMatrix);
    id = glGetUniformLocation(shader[shader_index], "ProjectionMatrix");
    if (id >= 0)
       glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
@@ -431,40 +500,225 @@ void SetUniformMatrices(int shader_index)
       glUniformMatrix3fv(id, 1, 0, (float *)NormalMatrix);
 }
 
+void setModelNormalMatrices(GLuint shader, float x_trans, float  y_trans, float  z_trans, float x_rot, float y_rot, float z_rot, float x_scale, float y_scale, float z_scale) 
+{
+   if (!drawArrayShaders){
+      glRotated(x_rot,1,0,0);
+      glRotated(y_rot,0,1,0);
+      glRotated(z_rot,0,0,1);
+      glTranslated(x_trans, y_trans, z_trans);
+      glScaled(x_scale, y_scale, z_scale);
+   }
+
+   mat4 ModelMatrix;
+   mat3 NormalMatrix;
+   glm_mat4_identity(ModelMatrix);
+   glm_scale(ModelMatrix, (vec3){x_scale, y_scale, z_scale});
+   glm_translate(ModelMatrix, (vec3){x_trans, y_trans, z_trans});
+   glm_rotate_y(ModelMatrix, y_rot*3.1415926/180, ModelMatrix);
+   glm_rotate_x(ModelMatrix, x_rot*3.1415926/180, ModelMatrix);
+   glm_rotate_z(ModelMatrix, z_rot*3.1415926/180, ModelMatrix);
+
+   glm_mat4_pick3(ModelMatrix, NormalMatrix);
+   glm_mat3_inv(NormalMatrix, NormalMatrix);
+   glm_mat3_transpose(NormalMatrix);
+
+   glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
+   glUniformMatrix3fv(glGetUniformLocation(shader, "NormalMatrix"), 1, 0, (float *)NormalMatrix);
+
+}
+
+void Scene(GLuint shader){
+   mat4 ModelMatrix, temp;
+   mat3 NormalMatrix, temp3;
+   glm_mat4_identity(ModelMatrix);
+
+   glPushMatrix();
+   glm_translate(ModelMatrix, (vec3){0,0,0}); glTranslated(0,0,0);
+   glm_scale(ModelMatrix, (vec3){1, 1, 1}); glScaled(1, 1, 1);
+   glm_mat4_copy(ModelMatrix,gModelMatrix); 
+   glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
+   Hat();
+   glPopMatrix();
+
+   glPushMatrix();
+   /* glm_mat4_identity(ModelMatrix);
+   glm_translate(ModelMatrix, (vec3){0,-0.01,0}); glTranslated(0,-0.1,0);
+   
+   glm_scale(ModelMatrix, (vec3){8, 8, 8}); glScaled(8,8,6);
+   glm_rotate_x(ModelMatrix, -0.5*3.1415926, temp);  glRotated(-90,1,0,0);
+   glm_mat4_copy(temp,ModelMatrix); 
+   glm_mat4_pick3(ModelMatrix, NormalMatrix);
+   glm_mat3_inv(NormalMatrix, temp3);
+   glm_mat3_transpose_to(temp3, NormalMatrix);
+   glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
+   glUniformMatrix3fv(glGetUniformLocation(shader, "NormalMatrix"), 1, 0, (float *)NormalMatrix); */
+   setModelNormalMatrices(shader, 0, 0, 0, -90, 0, 0, 8, 8, 8);
+   Wall(4);
+   glPopMatrix();
+   
+   mat4 printMatrix;
+   FILE *f = fopen("out.txt", "w");
+   glm_mat4_mul(gModelMatrix, gViewMatrix, printMatrix);
+   glm_mat4_print(printMatrix, f);
+}
+
+void ConfigureShadowShaderAndMatrices(){
+   glUseProgram(shader[4]);
+   float near_plane = 1.0f, far_plane = 7.5f;
+   mat4 LightProjection, LightView, LightSpaceMatrix, ModelMatrix;
+   glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane, LightProjection);
+
+   glm_lookat((vec3){-2.0f, 4.0f, -1.0f}, 
+              (vec3){ 0.0f, 0.0f,  0.0f}, 
+              (vec3){ 0.0f, 1.0f,  0.0f}, 
+              LightView);
+
+   // T 
+   glm_mat4_mul(LightProjection, LightView, LightSpaceMatrix);
+   glm_mat4_identity(ModelMatrix);
+
+   int id;
+   id = glGetUniformLocation(shader[4], "LightSpaceMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, (float *)LightSpaceMatrix);
+   id = glGetUniformLocation(shader[4], "ModelMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, (float *)ModelMatrix);
+}
+
+void ConfigureShaderAndMatrices(){
+   glUseProgram(shader[5]);
+   float near_plane = 1.0f, far_plane = 7.5f;
+   mat4 LightProjection, LightView, LightSpaceMatrix, ModelMatrix, ViewMatrix;
+   float projection[16];
+   Light(1);
+   vec3 lightPos={-2.0f, 4.0f, -1.0f};
+   glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane, LightProjection);
+
+   glm_lookat(lightPos, 
+              (vec3){ 0.0f, 0.0f,  0.0f}, 
+              (vec3){ 0.0f, 1.0f,  0.0f}, 
+              LightView);
+
+   // T 
+   glm_mat4_mul(LightProjection, LightView, LightSpaceMatrix);
+   glm_mat4_identity(ModelMatrix);
+
+   vec3 ViewPos={Ex, Ey, Ez};
+   glm_lookat(ViewPos, 
+              (vec3){ 0.0f, 0.0f,  0.0f}, 
+              (vec3){ 0.0f, Cos(ph),  0.0f}, 
+              ViewMatrix);
+   
+   glPushMatrix();
+   glMatrixMode(GL_PROJECTION);
+   glLoadIdentity();
+   gluPerspective(fov, asp, dim/16,16*dim);
+   glGetFloatv(GL_PROJECTION_MATRIX, projection);
+   glPopMatrix();
+   //glm_perspective(fov, asp, dim/16,16*dim, projection);
+
+   int id;
+   id = glGetUniformLocation(shader[5], "LightSpaceMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, (float *)LightSpaceMatrix);
+   id = glGetUniformLocation(shader[5], "ModelMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, (float *)ModelMatrix);
+   id = glGetUniformLocation(shader[5], "ViewMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, (float *)ViewMatrix);
+   id = glGetUniformLocation(shader[5], "ProjectionMatrix");
+   if (id >= 0)
+      glUniformMatrix4fv(id, 1, 0, projection);
+   id = glGetUniformLocation(shader[5], "shadowMap");
+   if (id >= 0)
+      glUniform1i(id, depthMapFBO);
+   id = glGetUniformLocation(shader[5], "diffuseTexture");
+   if (id >= 0)
+      glUniform1i(id, tex);
+   id = glGetUniformLocation(shader[5], "lightPos");
+   if (id >= 0)
+      glUniform4fv(id, 1, lightPos);
+   id = glGetUniformLocation(shader[5], "ViewPos");
+   if (id >= 0)
+      glUniform4fv(id, 1, ViewPos);
+         
+}
+
+void ShadowMap(){
+
+   glBindVertexArray(shadowVao);
+   glEnable(GL_NORMALIZE);
+   // 1. first render to depth map
+   /* glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+   glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+   glClear(GL_DEPTH_BUFFER_BIT);
+   ConfigureShadowShaderAndMatrices();
+   glCullFace(GL_FRONT);
+   Scene();
+   glCullFace(GL_BACK);
+   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+ */
+   // 2. then render scene as normal with shadow mapping (using depth map)
+   glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+   ConfigureShaderAndMatrices();
+   //glBindTexture(GL_TEXTURE_2D, depthMap);
+
+}
+
+void InitMap(){
+   glGenFramebuffers(1, &depthMapFBO);
+
+   //SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+
+   glGenTextures(1, &depthMap);
+   glBindTexture(GL_TEXTURE_2D, depthMap);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER); 
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+   float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+   glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);  
+
+   glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+   glDrawBuffer(GL_NONE);
+   glReadBuffer(GL_NONE);
+   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) Fatal("Error setting up frame buffer\n");
+   glBindFramebuffer(GL_FRAMEBUFFER, 0); 
+}
+
+
 /*    OpenGL (GLUT) calls this routine to display the scene    */
 void display()
 {
    //  Erase the window and the depth buffer
+   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    //  Enable Z-buffering in OpenGL
    glEnable(GL_DEPTH_TEST);
-   /* glDepthFunc(GL_LEQUAL);
-   glFrontFace(GL_CCW);   
-   glEnable(GL_CULL_FACE);  */ 
+   //  OpenGL should normalize normal vectors
+   glEnable(GL_NORMALIZE);
    //  Undo previous transformations
    glLoadIdentity();
 
    //  Perspective - set eye position
-   double Ex = -2 * dim * Sin(th) * Cos(ph);
-   double Ey = +2 * dim * Sin(ph);
-   double Ez = +2 * dim * Cos(th) * Cos(ph);
+   Camera();
    gluLookAt(Ex, Ey, Ez, 0, 0, 0, 0, Cos(ph), 0);
 
-   //  Flat or smooth shading
-   glShadeModel(smooth ? GL_SMOOTH : GL_FLAT);
-
    //  Translate intensity to color vectors
-   float Emission[] = {0.1 * emission, 0.1 * emission, 0.1 * emission, 1.0};
-   float Ambient[] = {0.01 * ambient, 0.01 * ambient, 0.01 * ambient, 1.0};
-   float Diffuse[] = {0.01 * diffuse, 0.01 * diffuse, 0.01 * diffuse, 1.0};
-   float Specular[] = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
-   float Shinyness[] = {16};
+   float Emission[]  = {0.1  * emission, 0.1  * emission, 0.1  * emission, 1.0};
+   float Ambient[]   = {0.01 * ambient,  0.01 * ambient,  0.01 * ambient,  1.0};
+   float Diffuse[]   = {0.01 * diffuse,  0.01 * diffuse,  0.01 * diffuse,  1.0};
+   float Specular[]  = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
 
    //  Light position
-   Position[0] = distance * Cos(zh);
-   Position[1] = ylight;
-   Position[2] = distance * Sin(zh);
-   Position[3] = 1.0;
+   Light(0);
    //  Draw light position as sphere (still no lighting here)
    glPushMatrix();
    glColor3f(1, 1, 1);
@@ -472,59 +726,55 @@ void display()
    glutSolidSphere(0.03, 10, 10);
    glPopMatrix();
 
-   //  OpenGL should normalize normal vectors
-   glEnable(GL_NORMALIZE);
-   //  Enable lighting
-   glEnable(GL_LIGHTING);
-   //  Location of viewer for specular calculations
-   glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
-   //  glColor sets ambient and diffuse color materials
-   glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-   glEnable(GL_COLOR_MATERIAL);
-   //  Enable light 0
-   glEnable(GL_LIGHT0);
+   Light(1);
    //  Set ambient, diffuse, specular components and position of light 0
    glLightfv(GL_LIGHT0, GL_AMBIENT, Ambient);
    glLightfv(GL_LIGHT0, GL_DIFFUSE, Diffuse);
    glLightfv(GL_LIGHT0, GL_SPECULAR, Specular);
    glLightfv(GL_LIGHT0, GL_POSITION, Position);
    
+   if(shader_mode==6){
+      ShadowMap();
+      Scene(shader[5]);
+   }
+   else{
+      glUseProgram(shader[shader_mode]);
+      SetUniformMatrices(shader_mode);
+      int id;
+      //  Set lighting parameters
+      id = glGetUniformLocation(shader[shader_mode], "Position");
+      if (id >= 0)
+         glUniform4fv(id, 1, Position);
+      id = glGetUniformLocation(shader[shader_mode], "Ambient");
+      if (id >= 0)
+         glUniform4fv(id, 1, Ambient);
+      id = glGetUniformLocation(shader[shader_mode], "Diffuse");
+      if (id >= 0)
+         glUniform4fv(id, 1, Diffuse);
+      id = glGetUniformLocation(shader[shader_mode], "Specular");
+      if (id >= 0)
+         glUniform4fv(id, 1, Specular);
+      //  Set material properties
+      id = glGetUniformLocation(shader[shader_mode], "Ks");
+      if (id >= 0)
+         glUniform4fv(id, 1, Specular);
+      id = glGetUniformLocation(shader[shader_mode], "Ke");
+      if (id >= 0)
+         glUniform4fv(id, 1, Emission);
+      id = glGetUniformLocation(shader[shader_mode], "Shinyness");
+      if (id >= 0)
+         glUniform1f(id, shiny);
+
+      glBindTexture(GL_TEXTURE_2D, tex);
+      // Draw Hat
+      Scene(shader[shader_mode]);
+      
+   }
    if(normals){
       glUseProgram(shader[3]);
       SetUniformMatrices(3);
-      Hat(0, 0, 0, 1);
+      Scene(shader[3]);
    }
-
-   glUseProgram(shader[shader_mode]);
-   SetUniformMatrices(shader_mode);
-   int id;
-   //  Set lighting parameters
-   id = glGetUniformLocation(shader[shader_mode], "Position");
-   if (id >= 0)
-      glUniform4fv(id, 1, Position);
-   id = glGetUniformLocation(shader[shader_mode], "Ambient");
-   if (id >= 0)
-      glUniform4fv(id, 1, Ambient);
-   id = glGetUniformLocation(shader[shader_mode], "Diffuse");
-   if (id >= 0)
-      glUniform4fv(id, 1, Diffuse);
-   id = glGetUniformLocation(shader[shader_mode], "Specular");
-   if (id >= 0)
-      glUniform4fv(id, 1, Specular);
-   //  Set material properties
-   id = glGetUniformLocation(shader[shader_mode], "Ks");
-   if (id >= 0)
-      glUniform4fv(id, 1, Specular);
-   id = glGetUniformLocation(shader[shader_mode], "Ke");
-   if (id >= 0)
-      glUniform4fv(id, 1, Emission);
-   id = glGetUniformLocation(shader[shader_mode], "Shinyness");
-   if (id >= 0)
-      glUniform1f(id, Shinyness[0]);
-
-   // Draw Hat
-   Hat(0, 0, 0, 1);
-
    glUseProgram(shader[0]);
    // Draw axes
    Axes();
@@ -536,8 +786,7 @@ void display()
    glutSwapBuffers();
 }
 
-/*
- *  Read text file
+/* Read text file
  */
 char *ReadText(char *file)
 {
@@ -692,9 +941,6 @@ void key(unsigned char ch, int x, int y)
    //  Toggle axes
    else if (ch == 'x' || ch == 'X')
       axes = !axes;
-   //  Toggle shading mode
-   else if (ch == 't' || ch == 'T')
-      smooth = !smooth;
    //  Light movement mode
    else if (ch == 'm' || ch == 'M')
       move = (move + 1) % 3;
@@ -735,6 +981,9 @@ void reshape(int width, int height)
 {
    //  Ratio of the width to the height of the window
    asp = (height > 0) ? (double)width / height : 1;
+
+   SCR_WIDTH=width;
+   SCR_HEIGHT=height;
    //  Set the viewport to the entire window
    glViewport(0, 0, width, height);
    //  Set projection
@@ -752,148 +1001,6 @@ void idle()
 }
 
 
-/*
- *  Build Shadow Map
- */
-void ShadowMap(void)
-{
-   double Lmodel[16];  //  Light modelview matrix
-   double Lproj[16];   //  Light projection matrix
-   double Tproj[16];   //  Texture projection matrix
-   double Dim=2.0;     //  Bounding radius of scene
-   double Ldist;       //  Distance from light to scene center
-
-   //  Save transforms and modes
-   glPushMatrix();
-   glPushAttrib(GL_TRANSFORM_BIT|GL_ENABLE_BIT);
-   //  No write to color buffer and no smoothing
-   glShadeModel(GL_FLAT);
-   glColorMask(0,0,0,0);
-   // Overcome imprecision
-   glEnable(GL_POLYGON_OFFSET_FILL);
-
-   //  Turn off lighting and set light position
-   Light(0);
-
-   //  Light distance
-   Ldist = sqrt(Position[0]*Position[0] + Position[1]*Position[1] + Position[2]*Position[2]);
-   if (Ldist<1.1*Dim) Ldist = 1.1*Dim;
-
-   //  Set perspective view from light position
-   glMatrixMode(GL_PROJECTION);
-   glLoadIdentity();
-   gluPerspective(114.6*atan(Dim/Ldist),1,Ldist-Dim,Ldist+Dim);
-   glMatrixMode(GL_MODELVIEW);
-   glLoadIdentity();
-   gluLookAt(Position[0],Position[1],Position[2] , 0,0,0 , 0,1,0);
-   //  Size viewport to desired dimensions
-   glViewport(0,0,shadowdim,shadowdim);
-
-   // Redirect traffic to the frame buffer
-   glBindFramebuffer(GL_FRAMEBUFFER,framebuf);
-
-   // Clear the depth buffer
-   glClear(GL_DEPTH_BUFFER_BIT);
-   // Draw all objects that can cast a shadow
-   Scene(0);
-
-   //  Retrieve light projection and modelview matrices
-   glGetDoublev(GL_PROJECTION_MATRIX,Lproj);
-   glGetDoublev(GL_MODELVIEW_MATRIX,Lmodel);
-
-   // Set up texture matrix for shadow map projection,
-   // which will be rolled into the eye linear
-   // texture coordinate generation plane equations
-   glLoadIdentity();
-   glTranslated(0.5,0.5,0.5);
-   glScaled(0.5,0.5,0.5);
-   glMultMatrixd(Lproj);
-   glMultMatrixd(Lmodel);
-
-   // Retrieve result and transpose to get the s, t, r, and q rows for plane equations
-   glGetDoublev(GL_MODELVIEW_MATRIX,Tproj);
-   Svec[0] = Tproj[0];    Tvec[0] = Tproj[1];    Rvec[0] = Tproj[2];    Qvec[0] = Tproj[3];
-   Svec[1] = Tproj[4];    Tvec[1] = Tproj[5];    Rvec[1] = Tproj[6];    Qvec[1] = Tproj[7];
-   Svec[2] = Tproj[8];    Tvec[2] = Tproj[9];    Rvec[2] = Tproj[10];   Qvec[2] = Tproj[11];
-   Svec[3] = Tproj[12];   Tvec[3] = Tproj[13];   Rvec[3] = Tproj[14];   Qvec[3] = Tproj[15];
-
-   // Restore normal drawing state
-   glShadeModel(GL_SMOOTH);
-   glColorMask(1,1,1,1);
-   glDisable(GL_POLYGON_OFFSET_FILL);
-   glPopAttrib();
-   glPopMatrix();
-   glBindFramebuffer(GL_FRAMEBUFFER,0);
-
-   //  Check if something went wrong
-   ErrCheck("ShadowMap");
-}
-
-/*
- *
- */
-void InitMap()
-{
-   unsigned int shadowtex; //  Shadow buffer texture id
-   int n;
-
-   //  Make sure multi-textures are supported
-   glGetIntegerv(GL_MAX_TEXTURE_UNITS,&n);
-   if (n<2) Fatal("Multiple textures not supported\n");
-
-   //  Get maximum texture buffer size
-   glGetIntegerv(GL_MAX_TEXTURE_SIZE,&shadowdim);
-   //  Limit texture size to maximum buffer size
-   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&n);
-   if (shadowdim>n) shadowdim = n;
-   //  Limit texture size to 2048 for performance
-   if (shadowdim>2048) shadowdim = 2048;
-   if (shadowdim<512) Fatal("Shadow map dimensions too small %d\n",shadowdim);
-
-   //  Do Shadow textures in MultiTexture 1
-   glActiveTexture(GL_TEXTURE1);
-
-   //  Allocate and bind shadow texture
-   glGenTextures(1,&shadowtex);
-   glBindTexture(GL_TEXTURE_2D,shadowtex);
-   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowdim, shadowdim, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-
-   //  Map single depth value to RGBA (this is called intensity)
-   glTexParameteri(GL_TEXTURE_2D,GL_DEPTH_TEXTURE_MODE,GL_INTENSITY);
-
-   //  Set texture mapping to clamp and linear interpolation
-   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-
-   //  Set automatic texture generation mode to Eye Linear
-   glTexGeni(GL_S,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
-   glTexGeni(GL_T,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
-   glTexGeni(GL_R,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
-   glTexGeni(GL_Q,GL_TEXTURE_GEN_MODE,GL_EYE_LINEAR);
-
-   // Switch back to default textures
-   glActiveTexture(GL_TEXTURE0);
-
-   // Attach shadow texture to frame buffer
-   glGenFramebuffers(1,&framebuf);
-   glBindFramebuffer(GL_FRAMEBUFFER,framebuf);
-   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowtex, 0);
-   //  Don't write or read to visible color buffer
-   glDrawBuffer(GL_NONE);
-   glReadBuffer(GL_NONE);
-   //  Make sure this all worked
-   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) Fatal("Error setting up frame buffer\n");
-   glBindFramebuffer(GL_FRAMEBUFFER,0);
-
-   //  Check if something went wrong
-   ErrCheck("InitMap");
-
-   //  Create shadow map
-   ShadowMap();
-}
-
 /*    Start up GLUT and tell it what to do     */
 int main(int argc, char *argv[])
 {
@@ -903,12 +1010,12 @@ int main(int argc, char *argv[])
    glutInitWindowSize(600, 600);
    glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
    //  Create the window
-   glutCreateWindow("model viewer");
+   glutCreateWindow("Model viewer");
 
    // Create vertex array object once window has been generated, before any other openGl call - http://www.opengl-tutorial.org/beginners-tutorials/tutorial-2-the-first-triangle/
-   GLuint vao;
-   glGenVertexArrays(1, &vao);
-   glBindVertexArray(vao);
+   glGenVertexArrays(1, &hatVao);
+   glGenVertexArrays(1, &wallVao);
+   glGenVertexArrays(1, &shadowVao);
 
    //  Tell GLUT to call "idle" when there is nothing else to do
    glutIdleFunc(idle);
@@ -920,12 +1027,15 @@ int main(int argc, char *argv[])
    glutSpecialFunc(special);
    //  Tell GLUT to call "key" when a key is pressed
    glutKeyboardFunc(key);
-   LoadTexBMP("./textures/489.bmp");
+   LoadTexBMP("./textures/490.bmp");
+   tex=LoadTexBMP("./textures/490.bmp");
    //  Shaders
-   shader[1] = CreateShaderProg("./shaders/pixtex/pixtex.vert", "./shaders/pixtex/pixtex.frag", NULL);
-   shader[2] = CreateShaderProg("./shaders/simple/simple.vert", "./shaders/simple/simple.frag", NULL);
-   shader[3] = CreateShaderProg("./shaders/normals/normals.vert", "./shaders/normals/normals.frag", "./shaders/normals/normals.geo");
-
+   shader[1] = CreateShaderProg("./shaders/pixtex/pixtex.vs", "./shaders/pixtex/pixtex.fs", NULL);
+   shader[2] = CreateShaderProg("./shaders/simple/simple.vs", "./shaders/simple/simple.fs", NULL);
+   shader[3] = CreateShaderProg("./shaders/normals/normals.vs", "./shaders/normals/normals.fs", "./shaders/normals/normals.gs");
+   shader[4] = CreateShaderProg("./shaders/lightPOV/lightPOV.vs", "./shaders/lightPOV/lightPOV.fs", NULL);
+   shader[5] = CreateShaderProg("./shaders/shadow/shadow.vs", "./shaders/shadow/shadow.fs", NULL);
+   InitMap();
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();

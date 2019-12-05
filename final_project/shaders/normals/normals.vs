@@ -5,6 +5,7 @@ uniform mat4 ModelViewMatrix;
 uniform mat4 ViewMatrix;
 uniform mat4 ProjectionMatrix;
 uniform mat3 NormalMatrix;
+uniform mat4 ModelMatrix;
 
 layout(location = 0) in vec3 vertex_position;
 layout(location = 1) in vec3 vertex_normal;
@@ -15,6 +16,6 @@ out VS_OUT {
 
 void main()
 {
-  gl_Position =  ProjectionMatrix * ModelViewMatrix * vec4(vertex_position, 1.0);
+  gl_Position =  ProjectionMatrix * ViewMatrix * ModelMatrix * vec4(vertex_position, 1.0);
   vs_out.normal = normalize(NormalMatrix * vertex_normal);
 }
