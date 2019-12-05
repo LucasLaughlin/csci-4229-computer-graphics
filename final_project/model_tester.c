@@ -18,6 +18,7 @@
 int      normals = 0;   // Display normal vectors
 int      axes = 1;      // Display axes
 double   t = 0;         // Timer
+int      wall = 1;      // Floor/wall boolean
 
 /*    Camera/Eye position    */
 int      th = 30;       //  Azimuth of view angle
@@ -39,7 +40,7 @@ float Diffuse[4], Ambient[4], Specular[4], Emission[4];
 
 /*    Floating light positioning     */
 int      zh = 90;       // Light azimuth
-float    ylight = 0;    // Elevation of light
+float    ylight = 3;    // Elevation of light
 int      distance = 5;  // Light distance
 int      move = 0;      // Light ball movement type
 float    Position[4];   // Light Position
@@ -484,11 +485,12 @@ void SetViewProjectionMatrices(int shader)
 void setModelViewNormalMatrices(int shader, float x_trans, float  y_trans, float  z_trans, float x_rot, float y_rot, float z_rot, float x_scale, float y_scale, float z_scale) 
 {
    if (!drawArrayShaders){
-      glRotated(x_rot,1,0,0);
-      glRotated(y_rot,0,1,0);
-      glRotated(z_rot,0,0,1);
-      glTranslated(x_trans, y_trans, z_trans);
-      glScaled(x_scale, y_scale, z_scale);
+      glMatrixMode(GL_MODELVIEW);
+      glRotatef(x_rot,1,0,0);
+      glRotatef(y_rot,0,1,0);
+      glRotatef(z_rot,0,0,1);
+      glTranslatef(x_trans, y_trans, z_trans);
+      glScalef(x_scale, y_scale, z_scale);
    }
 
    mat4 ModelMatrix;
@@ -517,19 +519,20 @@ void Scene(int shader){
    Hat();
    glPopMatrix();
 
-   glPushMatrix();
-   setModelViewNormalMatrices(shader, 0, 0, 0, -90, 0, 0, 8, 8, 8);
-   Wall(4);
-   glPopMatrix();
-
+   if (wall){
+      glPushMatrix();
+      setModelViewNormalMatrices(shader, 0, 0.8, 0, -90, 0, 0, 8, 8, 8);
+      Wall(4);
+      glPopMatrix();
+   }
 }
 
 void ConfigureLightPovMatrices(int shader){
    float near_plane = 1.0f, far_plane = 7.5f;
    mat4 LightProjection, LightView, LightSpaceMatrix;
    glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane, LightProjection);
-   vec3 LightPos={0.0f, 4.0f, 0.0f};
-   //vec3 LightPos={Position[0], Position[1], Position[2]};
+   //vec3 LightPos={0.0f, 4.0f, 0.0f};
+   vec3 LightPos={Position[0], Position[1], Position[2]};
    glm_lookat(LightPos, 
               (vec3){ 0.0f, 0.0f,  0.0f}, 
               (vec3){ 0.0f, 1.0f,  0.0f}, 
@@ -537,13 +540,13 @@ void ConfigureLightPovMatrices(int shader){
 
    glm_mat4_mul(LightProjection, LightView, LightSpaceMatrix);
 
-   int id;
-   id = glGetUniformLocation(shader, "LightSpaceMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)LightSpaceMatrix);
-   id = glGetUniformLocation(shader, "lightPos");
-   if (id >= 0)
-      glUniform4fv(id, 1, LightPos);
+   mat4 test; 
+   glm_mat4_identity(test);
+   glUniformMatrix4fv(glGetUniformLocation(shader, "test"), 1, 0, (float *)test);
+   
+   glUniformMatrix4fv(glGetUniformLocation(shader, "LightSpaceMatrix"), 1, 0, (float *)LightSpaceMatrix);
+   glUniform4fv(glGetUniformLocation(shader, "lightPos"), 1, LightPos);
+
 }
 
 void ConfigureShadowShader(){
@@ -579,7 +582,6 @@ void ShadowMap(){
    ConfigureShadowShader();
    
    glBindTexture(GL_TEXTURE_2D, depthMap);
-   //Scene(shader[3]);
 }
 
 void InitMap(){
@@ -628,15 +630,6 @@ void display()
    float Ambient[]   = {0.01 * ambient,  0.01 * ambient,  0.01 * ambient,  1.0};
    float Diffuse[]   = {0.01 * diffuse,  0.01 * diffuse,  0.01 * diffuse,  1.0};
    float Specular[]  = {0.01 * specular, 0.01 * specular, 0.01 * specular, 1.0};
-
-   //  Light position
-   Light(0);
-   //  Draw light position as sphere (still no lighting here)
-   glPushMatrix();
-   glColor3f(1, 1, 1);
-   glTranslated(Position[0], Position[1], Position[2]);
-   glutSolidSphere(0.03, 10, 10);
-   glPopMatrix();
 
    Light(1);
    //  Set ambient, diffuse, specular components and position of light 0
@@ -690,6 +683,12 @@ void display()
       Scene(normalShader);
    }
    glUseProgram(shader[0]);
+   //  Draw light position as sphere 
+   glPushMatrix();
+   glColor3f(1, 1, 1);
+   glTranslated(Position[0], Position[1], Position[2]);
+   glutSolidSphere(0.3, 10, 10);
+   glPopMatrix();
    // Draw axes
    Axes();
    // Write info
