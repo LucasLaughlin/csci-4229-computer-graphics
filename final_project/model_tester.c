@@ -52,8 +52,8 @@ unsigned int texture[3];
 int tex = 0;
 
 /*    Shader variables     */
-int shader_mode = 2;                               //  Current active shader
-int shader[] = {0, 0, 0, 0, 0, 0};                 //  Array to hold shader programs
+int shader_mode = 3;                               //  Current active shader
+int shader[] = {0, 0, 0, 0};                 //  Array to hold shader programs
 int num_shaders = sizeof(shader) / sizeof(int);    //  number of shaders
 int drawArrayShaders = 0;
 
@@ -62,6 +62,7 @@ int shadowdim;          // Size of shadow map textures
 unsigned int framebuf=0;// Frame buffer id
 GLuint       depthMapFBO;
 GLuint       depthMap;
+int shadowMapShader, normalShader; 
 const GLuint SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 int SCR_WIDTH = 600, SCR_HEIGHT = 600;
 
@@ -462,20 +463,11 @@ void Camera(){
    Ez = +2 * dim * Cos(th) * Cos(ph);
 }
 
-void SetUniformMatrices(int shader_index)
+void SetViewProjectionMatrices(int shader)
 {
-   float /* ViewMatrix[16],  */ModelViewMatrix[16], ProjectionMatrix[16];
+   float ProjectionMatrix[16];
    glGetFloatv(GL_PROJECTION_MATRIX, ProjectionMatrix);
-   glGetFloatv(GL_MODELVIEW_MATRIX, ModelViewMatrix);
-   mat3 inverse, NormalMatrix;
 
-   mat3 submatrix = {
-       {ModelViewMatrix[0], ModelViewMatrix[1], ModelViewMatrix[2]},
-       {ModelViewMatrix[4], ModelViewMatrix[5], ModelViewMatrix[6]},
-       {ModelViewMatrix[8], ModelViewMatrix[9], ModelViewMatrix[10]}};
-
-   glm_mat3_inv(submatrix, inverse);
-   glm_mat3_transpose_to(inverse, NormalMatrix);
    mat4 ViewMatrix;
    Camera();
    vec3 ViewPos={Ex, Ey, Ez};
@@ -483,24 +475,13 @@ void SetUniformMatrices(int shader_index)
               (vec3){ 0.0f, 0.0f,  0.0f}, 
               (vec3){ 0.0f, Cos(ph),  0.0f}, 
               ViewMatrix);
+   glm_mat4_copy(ViewMatrix, gViewMatrix);
 
-   int id;
-   //  Set matrixes
-   id = glGetUniformLocation(shader[shader_index], "ModelViewMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ModelViewMatrix);
-   id = glGetUniformLocation(shader[shader_index], "ViewMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)ViewMatrix);
-   id = glGetUniformLocation(shader[shader_index], "ProjectionMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, ProjectionMatrix);
-   id = glGetUniformLocation(shader[shader_index], "NormalMatrix");
-   if (id >= 0)
-      glUniformMatrix3fv(id, 1, 0, (float *)NormalMatrix);
+   glUniformMatrix4fv(glGetUniformLocation(shader, "ViewMatrix"), 1, 0, (float *)ViewMatrix);
+   glUniformMatrix4fv(glGetUniformLocation(shader, "ProjectionMatrix"), 1, 0, ProjectionMatrix);
 }
 
-void setModelNormalMatrices(GLuint shader, float x_trans, float  y_trans, float  z_trans, float x_rot, float y_rot, float z_rot, float x_scale, float y_scale, float z_scale) 
+void setModelViewNormalMatrices(int shader, float x_trans, float  y_trans, float  z_trans, float x_rot, float y_rot, float z_rot, float x_scale, float y_scale, float z_scale) 
 {
    if (!drawArrayShaders){
       glRotated(x_rot,1,0,0);
@@ -511,6 +492,7 @@ void setModelNormalMatrices(GLuint shader, float x_trans, float  y_trans, float 
    }
 
    mat4 ModelMatrix;
+   mat4 ModelViewMatrix;
    mat3 NormalMatrix;
    glm_mat4_identity(ModelMatrix);
    glm_scale(ModelMatrix, (vec3){x_scale, y_scale, z_scale});
@@ -519,131 +501,57 @@ void setModelNormalMatrices(GLuint shader, float x_trans, float  y_trans, float 
    glm_rotate_x(ModelMatrix, x_rot*3.1415926/180, ModelMatrix);
    glm_rotate_z(ModelMatrix, z_rot*3.1415926/180, ModelMatrix);
 
-   glm_mat4_pick3(ModelMatrix, NormalMatrix);
+   glm_mat4_mul(gViewMatrix, ModelMatrix, ModelViewMatrix);
+   glm_mat4_pick3(ModelViewMatrix, NormalMatrix);
    glm_mat3_inv(NormalMatrix, NormalMatrix);
    glm_mat3_transpose(NormalMatrix);
 
    glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
    glUniformMatrix3fv(glGetUniformLocation(shader, "NormalMatrix"), 1, 0, (float *)NormalMatrix);
-
+   glUniformMatrix3fv(glGetUniformLocation(shader, "ModelViewMatrix"), 1, 0, (float *)ModelViewMatrix);
 }
 
-void Scene(GLuint shader){
-   mat4 ModelMatrix, temp;
-   mat3 NormalMatrix, temp3;
-   glm_mat4_identity(ModelMatrix);
-
+void Scene(int shader){
    glPushMatrix();
-   glm_translate(ModelMatrix, (vec3){0,0,0}); glTranslated(0,0,0);
-   glm_scale(ModelMatrix, (vec3){1, 1, 1}); glScaled(1, 1, 1);
-   glm_mat4_copy(ModelMatrix,gModelMatrix); 
-   glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
+   setModelViewNormalMatrices(shader, 0, 0, 0, 0, 0, 0, 1, 1, 1);
    Hat();
    glPopMatrix();
 
    glPushMatrix();
-   /* glm_mat4_identity(ModelMatrix);
-   glm_translate(ModelMatrix, (vec3){0,-0.01,0}); glTranslated(0,-0.1,0);
-   
-   glm_scale(ModelMatrix, (vec3){8, 8, 8}); glScaled(8,8,6);
-   glm_rotate_x(ModelMatrix, -0.5*3.1415926, temp);  glRotated(-90,1,0,0);
-   glm_mat4_copy(temp,ModelMatrix); 
-   glm_mat4_pick3(ModelMatrix, NormalMatrix);
-   glm_mat3_inv(NormalMatrix, temp3);
-   glm_mat3_transpose_to(temp3, NormalMatrix);
-   glUniformMatrix4fv(glGetUniformLocation(shader, "ModelMatrix"), 1, 0, (float *)ModelMatrix);
-   glUniformMatrix3fv(glGetUniformLocation(shader, "NormalMatrix"), 1, 0, (float *)NormalMatrix); */
-   setModelNormalMatrices(shader, 0, 0, 0, -90, 0, 0, 8, 8, 8);
+   setModelViewNormalMatrices(shader, 0, 0, 0, -90, 0, 0, 8, 8, 8);
    Wall(4);
    glPopMatrix();
-   
-   mat4 printMatrix;
-   FILE *f = fopen("out.txt", "w");
-   glm_mat4_mul(gModelMatrix, gViewMatrix, printMatrix);
-   glm_mat4_print(printMatrix, f);
+
 }
 
-void ConfigureShadowShaderAndMatrices(){
-   glUseProgram(shader[4]);
+void ConfigureLightPovMatrices(int shader){
    float near_plane = 1.0f, far_plane = 7.5f;
-   mat4 LightProjection, LightView, LightSpaceMatrix, ModelMatrix;
+   mat4 LightProjection, LightView, LightSpaceMatrix;
    glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane, LightProjection);
-
-   glm_lookat((vec3){-2.0f, 4.0f, -1.0f}, 
+   vec3 LightPos={0.0f, 4.0f, 0.0f};
+   //vec3 LightPos={Position[0], Position[1], Position[2]};
+   glm_lookat(LightPos, 
               (vec3){ 0.0f, 0.0f,  0.0f}, 
               (vec3){ 0.0f, 1.0f,  0.0f}, 
               LightView);
 
-   // T 
    glm_mat4_mul(LightProjection, LightView, LightSpaceMatrix);
-   glm_mat4_identity(ModelMatrix);
 
    int id;
-   id = glGetUniformLocation(shader[4], "LightSpaceMatrix");
+   id = glGetUniformLocation(shader, "LightSpaceMatrix");
    if (id >= 0)
       glUniformMatrix4fv(id, 1, 0, (float *)LightSpaceMatrix);
-   id = glGetUniformLocation(shader[4], "ModelMatrix");
+   id = glGetUniformLocation(shader, "lightPos");
    if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)ModelMatrix);
+      glUniform4fv(id, 1, LightPos);
 }
 
-void ConfigureShaderAndMatrices(){
-   glUseProgram(shader[5]);
-   float near_plane = 1.0f, far_plane = 7.5f;
-   mat4 LightProjection, LightView, LightSpaceMatrix, ModelMatrix, ViewMatrix;
-   float projection[16];
-   Light(1);
-   vec3 lightPos={-2.0f, 4.0f, -1.0f};
-   glm_ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane, LightProjection);
-
-   glm_lookat(lightPos, 
-              (vec3){ 0.0f, 0.0f,  0.0f}, 
-              (vec3){ 0.0f, 1.0f,  0.0f}, 
-              LightView);
-
-   // T 
-   glm_mat4_mul(LightProjection, LightView, LightSpaceMatrix);
-   glm_mat4_identity(ModelMatrix);
+void ConfigureShadowShader(){
 
    vec3 ViewPos={Ex, Ey, Ez};
-   glm_lookat(ViewPos, 
-              (vec3){ 0.0f, 0.0f,  0.0f}, 
-              (vec3){ 0.0f, Cos(ph),  0.0f}, 
-              ViewMatrix);
-   
-   glPushMatrix();
-   glMatrixMode(GL_PROJECTION);
-   glLoadIdentity();
-   gluPerspective(fov, asp, dim/16,16*dim);
-   glGetFloatv(GL_PROJECTION_MATRIX, projection);
-   glPopMatrix();
-   //glm_perspective(fov, asp, dim/16,16*dim, projection);
-
-   int id;
-   id = glGetUniformLocation(shader[5], "LightSpaceMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)LightSpaceMatrix);
-   id = glGetUniformLocation(shader[5], "ModelMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)ModelMatrix);
-   id = glGetUniformLocation(shader[5], "ViewMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, (float *)ViewMatrix);
-   id = glGetUniformLocation(shader[5], "ProjectionMatrix");
-   if (id >= 0)
-      glUniformMatrix4fv(id, 1, 0, projection);
-   id = glGetUniformLocation(shader[5], "shadowMap");
-   if (id >= 0)
-      glUniform1i(id, depthMapFBO);
-   id = glGetUniformLocation(shader[5], "diffuseTexture");
-   if (id >= 0)
-      glUniform1i(id, tex);
-   id = glGetUniformLocation(shader[5], "lightPos");
-   if (id >= 0)
-      glUniform4fv(id, 1, lightPos);
-   id = glGetUniformLocation(shader[5], "ViewPos");
-   if (id >= 0)
-      glUniform4fv(id, 1, ViewPos);
+   glUniform1i(glGetUniformLocation(shader[3], "shadowMap"), depthMapFBO);
+   glUniform1i(glGetUniformLocation(shader[3], "diffuseTexture"), tex);
+   glUniform4fv(glGetUniformLocation(shader[3], "ViewPos"), 1, ViewPos);
          
 }
 
@@ -652,21 +560,25 @@ void ShadowMap(){
    glBindVertexArray(shadowVao);
    glEnable(GL_NORMALIZE);
    // 1. first render to depth map
-   /* glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+   glUseProgram(shadowMapShader);
+   glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
    glClear(GL_DEPTH_BUFFER_BIT);
-   ConfigureShadowShaderAndMatrices();
+   ConfigureLightPovMatrices(shadowMapShader);
    glCullFace(GL_FRONT);
-   Scene();
+   Scene(shadowMapShader);
    glCullFace(GL_BACK);
    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
- */
+
    // 2. then render scene as normal with shadow mapping (using depth map)
    glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-   ConfigureShaderAndMatrices();
-   //glBindTexture(GL_TEXTURE_2D, depthMap);
+   glUseProgram(shader[3]);
+   ConfigureLightPovMatrices(shader[3]);
+   ConfigureShadowShader();
+   Scene(shader[3]);
+   glBindTexture(GL_TEXTURE_2D, depthMap);
 
 }
 
@@ -733,13 +645,15 @@ void display()
    glLightfv(GL_LIGHT0, GL_SPECULAR, Specular);
    glLightfv(GL_LIGHT0, GL_POSITION, Position);
    
-   if(shader_mode==6){
+   if(shader_mode==3){
+      SetViewProjectionMatrices(shader_mode);
       ShadowMap();
-      Scene(shader[5]);
+      glBindTexture(GL_TEXTURE_2D, tex);
+      Scene(shader[3]);
    }
    else{
       glUseProgram(shader[shader_mode]);
-      SetUniformMatrices(shader_mode);
+      SetViewProjectionMatrices(shader[shader_mode]);
       int id;
       //  Set lighting parameters
       id = glGetUniformLocation(shader[shader_mode], "Position");
@@ -771,9 +685,9 @@ void display()
       
    }
    if(normals){
-      glUseProgram(shader[3]);
-      SetUniformMatrices(3);
-      Scene(shader[3]);
+      glUseProgram(normalShader);
+      SetViewProjectionMatrices(normalShader);
+      Scene(normalShader);
    }
    glUseProgram(shader[0]);
    // Draw axes
@@ -1032,9 +946,9 @@ int main(int argc, char *argv[])
    //  Shaders
    shader[1] = CreateShaderProg("./shaders/pixtex/pixtex.vs", "./shaders/pixtex/pixtex.fs", NULL);
    shader[2] = CreateShaderProg("./shaders/simple/simple.vs", "./shaders/simple/simple.fs", NULL);
-   shader[3] = CreateShaderProg("./shaders/normals/normals.vs", "./shaders/normals/normals.fs", "./shaders/normals/normals.gs");
-   shader[4] = CreateShaderProg("./shaders/lightPOV/lightPOV.vs", "./shaders/lightPOV/lightPOV.fs", NULL);
-   shader[5] = CreateShaderProg("./shaders/shadow/shadow.vs", "./shaders/shadow/shadow.fs", NULL);
+   shader[3] = CreateShaderProg("./shaders/shadow/shadow.vs", "./shaders/shadow/shadow.fs", NULL);
+   shadowMapShader = CreateShaderProg("./shaders/lightPOV/lightPOV.vs", "./shaders/lightPOV/lightPOV.fs", NULL);
+   normalShader = CreateShaderProg("./shaders/normals/normals.vs", "./shaders/normals/normals.fs", "./shaders/normals/normals.gs");
    InitMap();
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
