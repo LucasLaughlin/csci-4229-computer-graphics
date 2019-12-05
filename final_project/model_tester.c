@@ -560,10 +560,10 @@ void ShadowMap(){
    glBindVertexArray(shadowVao);
    glEnable(GL_NORMALIZE);
    // 1. first render to depth map
-   glUseProgram(shadowMapShader);
    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
    glClear(GL_DEPTH_BUFFER_BIT);
+   glUseProgram(shadowMapShader);
    ConfigureLightPovMatrices(shadowMapShader);
    glCullFace(GL_FRONT);
    Scene(shadowMapShader);
@@ -577,9 +577,9 @@ void ShadowMap(){
    glUseProgram(shader[3]);
    ConfigureLightPovMatrices(shader[3]);
    ConfigureShadowShader();
-   Scene(shader[3]);
+   
    glBindTexture(GL_TEXTURE_2D, depthMap);
-
+   //Scene(shader[3]);
 }
 
 void InitMap(){
@@ -646,10 +646,10 @@ void display()
    glLightfv(GL_LIGHT0, GL_POSITION, Position);
    
    if(shader_mode==3){
-      SetViewProjectionMatrices(shader_mode);
       ShadowMap();
+      SetViewProjectionMatrices(shader[shader_mode]);
       glBindTexture(GL_TEXTURE_2D, tex);
-      Scene(shader[3]);
+      Scene(shader[shader_mode]);
    }
    else{
       glUseProgram(shader[shader_mode]);
