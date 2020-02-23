@@ -519,7 +519,7 @@ void Scene(int shader){
    Hat();
    glPopMatrix();
 
-   if (wall){
+   if (wall && shader!=shadowMapShader){
       glPushMatrix();
       setModelViewNormalMatrices(shader, 0, 0.8, 0, -90, 0, 0, 8, 8, 8);
       Wall(4);
@@ -552,8 +552,10 @@ void ConfigureLightPovMatrices(int shader){
 void ConfigureShadowShader(){
 
    vec3 ViewPos={Ex, Ey, Ez};
-   glUniform1i(glGetUniformLocation(shader[3], "shadowMap"), depthMapFBO);
-   glUniform1i(glGetUniformLocation(shader[3], "diffuseTexture"), tex);
+   /* glUniform1i(glGetUniformLocation(shader[3], "shadowMap"), depthMapFBO);
+   glUniform1i(glGetUniformLocation(shader[3], "diffuseTexture"), tex); */
+   glUniform1i(glGetUniformLocation(shader[3], "shadowMap"), 1);
+   glUniform1i(glGetUniformLocation(shader[3], "diffuseTexture"), 0);
    glUniform4fv(glGetUniformLocation(shader[3], "ViewPos"), 1, ViewPos);
          
 }
@@ -566,6 +568,8 @@ void ShadowMap(){
    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
    glClear(GL_DEPTH_BUFFER_BIT);
+   glActiveTexture(GL_TEXTURE0);
+   glBindTexture(GL_TEXTURE_2D, tex);
    glUseProgram(shadowMapShader);
    ConfigureLightPovMatrices(shadowMapShader);
    glCullFace(GL_FRONT);
@@ -580,18 +584,26 @@ void ShadowMap(){
    glUseProgram(shader[3]);
    ConfigureLightPovMatrices(shader[3]);
    ConfigureShadowShader();
-   
+   //glBindTexture(GL_TEXTURE_2D, depthMap);
+   glActiveTexture(GL_TEXTURE0);
+   glBindTexture(GL_TEXTURE_2D, tex);
+   glActiveTexture(GL_TEXTURE1);
    glBindTexture(GL_TEXTURE_2D, depthMap);
+   
 }
 
 void InitMap(){
-   glGenFramebuffers(1, &depthMapFBO);
-
-   //SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+      //SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+   //CLASS:
+   glActiveTexture(GL_TEXTURE1);
 
    glGenTextures(1, &depthMap);
    glBindTexture(GL_TEXTURE_2D, depthMap);
-   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+   //CLASS:
+   glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
+
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER); 
@@ -599,6 +611,10 @@ void InitMap(){
    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);  
 
+   //CLASS:
+   glActiveTexture(GL_TEXTURE0);
+
+   glGenFramebuffers(1, &depthMapFBO);
    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
    glDrawBuffer(GL_NONE);
@@ -641,7 +657,7 @@ void display()
    if(shader_mode==3){
       ShadowMap();
       SetViewProjectionMatrices(shader[shader_mode]);
-      glBindTexture(GL_TEXTURE_2D, tex);
+      //glBindTexture(GL_TEXTURE_2D, tex);
       Scene(shader[shader_mode]);
    }
    else{
@@ -672,7 +688,7 @@ void display()
       if (id >= 0)
          glUniform1f(id, shiny);
 
-      glBindTexture(GL_TEXTURE_2D, tex);
+      //glBindTexture(GL_TEXTURE_2D, tex);
       // Draw Hat
       Scene(shader[shader_mode]);
       

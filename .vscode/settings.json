@@ -1,6 +1,0 @@
-{
-    "files.associations": {
-        "string_view": "c",
-        "tuple": "c"
-    }
-}
