@@ -1,0 +1,19 @@
+ex26: Model Loader Example
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Load and display OBJ files.
+Parameters <obj file> [scale [R G B]]
+The scale parameter can be used to change the size of the object
+The color sets a default color when the OBJ file does not have color settings.
+
+Key bindings
+  p          Toggle between orthogonal/perspective projections
+  s          Start/stop light
+  -/+        Decrease/increase light elevation
+  a          Toggle axes
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

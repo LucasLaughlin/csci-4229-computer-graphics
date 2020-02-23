@@ -7,5 +7,5 @@ uniform mat4 test;
 
 void main()
 {
-    gl_Position = LightSpaceMatrix * test * vec4(vertex_position, 1.0);
+    gl_Position = LightSpaceMatrix * ModelMatrix * vec4(vertex_position, 1.0);
 }  

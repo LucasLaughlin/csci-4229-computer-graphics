@@ -1,28 +1,57 @@
-Hw4
+Final Project
 
 Lucas Laughlin
-Portions of code were taken from proffesor Willem Schreuder's examples for CSCI 4229 
 
-Hw took around 6 hours
 
-Key bindings
-  left arrow    decrease azimuth
-  right arrow   increase azimuth
-  up arrow      increase angle of elevation
-  down arrow    decrease angle of elevation
-  Page Up       increase dimensions of world
-  Page Down     decrease dimensions of world  
+3 viewing modes: 
+  1. Orbit around origin
+    left arrow    decrease azimuth
+    right arrow   increase azimuth
+    up arrow      increase angle of elevation
+    down arrow    decrease angle of elevation
+  2. First person grounded
+    left arrow    strafe left
+    right arrow   strafe right
+    up arrow      move forward
+    down arrow    move backward
+    mouse         point camera
+  3. First person flight
+    left arrow    strafe left
+    right arrow   strafe right
+    up arrow      move forward
+    down arrow    move backward
+    Page up       increase elevation
+    Page down     decrease elevation
+    mouse         point camera
 
-  v/v        cycle through viewing modes (orthogonal, projection)
-  r/R        decreas FOV
-  f/F        increase FOV       
+  v/v        cycle through viewing modes (origin orbit, fps grounded, fps flight) 
   a/A        decrease/increase ambient light
   s/S        decrease/increase speculat light
-  d/D        decrease/increase diffused light
-  e/E        decrease/increase emmision light        
-  t/T        Toggle Smooth/flat shading
+  d/D        decrease/increase diffused light     
   m/m        Toggle light movement
-  l/L        Toggle light source
   x/X        Toggle axes
+  z/Z        Toggle shadow Map
+  n/n        Toggle normals
+  f/F        decrease/increaser FOV
   0          Reset view angle
   ESC        Exit
+
+
+It Doesn't look like much. I got too caught up trying to do shaders and all the hard stuff
+and didn't allocate enough time for building an interesting world.
+
+However, there are some highlights.
+
+Everything is build using Vertex array objects and shaders instead of the native OpenGl pipeline. 
+The first thing I implemented was the geometry shader that displays all the normals. Press n to toggle this feature.
+Next I built a shadow mapping shader. You can view the actual map by clicking z. Somehow in the last 24 hours I messed up the lighting 
+directions so they dont alwasy point the right way but when you are in the origin orbit view mode(0) and the light mode (0)
+you cab really see it in action. 
+
+I implememnted fog myself inside a shader and faded it into the skybox which itself fades thorugh an accelerated full day cycle. 
+I also chose to rotate the skybox to give the clouds a blowing effect. Unfortunetly, it also looks like the wind is blowing te stars aswell
+the "sun" light  when in mode 1 follows the day and night cycles and centers around the player like the sky box so it always feels like
+the sun is far away and directly overhead.
+
+I also built individual View matrices, model matrices and material functions to give me more flexibility when building my final project.
+Unforunately I spent more time "setting up" to make it than actually making it. 

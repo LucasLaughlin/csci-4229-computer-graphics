@@ -1,0 +1,20 @@
+ex25: Thunderbirds
+
+Willem A. (Vlakkies) Schreuder
+CSCI4229/5229 Fall 2019
+
+Draw complex objects from vertex list.
+Flight simulation demonstration.
+
+Key bindings
+  l/L        Toggle lighting on/off
+  f/F        Toggle flight/static mode
+  KP 4/6     Roll (static mode)
+  KP 2/8     Pitch (static mode)
+  KP 1/3     Yaw (static mode)
+  <>         Power (static mode)
+  a          Toggle axes
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit

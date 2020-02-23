@@ -1,9 +1,5 @@
 {
     "files.associations": {
-        "*.frag": "c",
-        "cmath": "c",
-        "complex": "c",
-        "*.vert": "c",
-        "thread": "c"
+        "cscix229.h": "c"
     }
 }

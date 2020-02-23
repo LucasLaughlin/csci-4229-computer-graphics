@@ -10,7 +10,7 @@ in VS_OUT {
 
 out vec3 color;
 
-const float MAGNITUDE = 1;
+const float MAGNITUDE = 0.5;
 
 void GenerateLine(int index)
 {

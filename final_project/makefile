@@ -23,16 +23,16 @@ CLEAN=rm -f $(EXE) *.o *.a
 endif
 
 # Dependencies
-model_tester.o: model_tester.c CSCI_helpers/CSCIx229.h
-fatal.o: CSCI_helpers/fatal.c CSCI_helpers/CSCIx229.h
-loadtexbmp.o: CSCI_helpers/loadtexbmp.c CSCI_helpers/CSCIx229.h
-print.o: CSCI_helpers/print.c CSCI_helpers/CSCIx229.h
-project.o: CSCI_helpers/project.c CSCI_helpers/CSCIx229.h
-errcheck.o: CSCI_helpers/errcheck.c CSCI_helpers/CSCIx229.h
-object.o: CSCI_helpers/object.c CSCI_helpers/CSCIx229.h
+model_tester.o: model_tester.c CSCIx229.h
+fatal.o: fatal.c CSCIx229.h
+loadtexbmp.o: loadtexbmp.c CSCIx229.h
+print.o: print.c CSCIx229.h
+project.o: project.c CSCIx229.h
+errcheck.o: errcheck.c CSCIx229.h
+object.o: object.c CSCIx229.h
 
 #  Create archive
-CSCIx229.a:fatal.o loadtexbmp.o print.o project.o errcheck.o object.o
+CSCIx229.a: fatal.o loadtexbmp.o print.o project.o errcheck.o object.o
 	ar -rcs $@ $^
 
 # Compile rules
